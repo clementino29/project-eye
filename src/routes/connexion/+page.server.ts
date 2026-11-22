@@ -38,7 +38,8 @@ export const actions = {
 			secure: url.protocol === 'https:',
 			maxAge: 600
 		});
-		redirect(303, destination.toString());
+		// Kit 3 refuse les redirections vers un autre site sans liste d'origines autorisées.
+		redirect(303, destination.toString(), { external: [new URL(config.authentik.issuer!).origin] });
 	},
 	// Connexion de test, seulement avec `npm run dev` et DEV_LOGIN=1.
 	dev: async ({ request, cookies, url }) => {
