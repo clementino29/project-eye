@@ -82,8 +82,9 @@ Le pseudo, le nom et l'e-mail viennent d'Authentik à chaque connexion ; la page
 
 ### Sakura Panel (Pelican)
 
-Chaque membre crée une clé API client dans Pelican (*Profil › Clés API*) et la colle dans sa page Compte.
+Chaque membre crée une clé API client dans Pelican (*Profil › Clés API*, `/profile?tab=api-keys`) et la colle dans sa page Compte.
 Le hub vérifie la clé auprès de Pelican avant de l'enregistrer, puis la garde chiffrée.
+Les liens « Ouvrir dans Sakura Panel » utilisent l'identifiant court du serveur (`/server/<id court>`).
 Les admins peuvent, depuis le Panel, relier un serveur à un jeu de la liste et régler l'adresse affichée et la sonde de joueurs (GameDig).
 
 ### Uptime Kuma
@@ -101,20 +102,27 @@ docker compose up -d --build
 ```
 
 - Le hub écoute sur `127.0.0.1:3000` (réglable avec `HUB_PORT`). Il faut un reverse proxy HTTPS devant.
-- **Si rien n'occupe les ports 80 et 443**, Caddy est fourni : renseigne `HUB_DOMAINE` puis
-  `docker compose --profile caddy up -d --build`. Le certificat HTTPS est automatique.
-- **Si un proxy sert déjà Pelican** (nginx, Caddy…), ajoute-lui un site pour le hub qui renvoie vers `127.0.0.1:3000`,
-  en gardant l'en-tête `Host` et en envoyant `X-Forwarded-Proto`. Exemple nginx :
+- **Si Apache sert déjà Pelican** (ports 80 et 443 occupés), ajoute-lui un site pour le hub qui renvoie vers `127.0.0.1:3000`,
+  sans activer le profil Caddy. Exemple pour apache2 (modules `proxy`, `proxy_http`, `headers` et `ssl` activés,
+  certificat par exemple avec `certbot --apache`) :
 
-  ```nginx
-  location / {
-      proxy_pass http://127.0.0.1:3000;
-      proxy_set_header Host $host;
-      proxy_set_header X-Forwarded-Proto $scheme;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
+  ```apache
+  <VirtualHost *:443>
+      ServerName hub.exemple.fr
+      SSLEngine on
+      # SSLCertificateFile / SSLCertificateKeyFile : ajoutés par certbot
+
+      ProxyPreserveHost On
+      ProxyPass / http://127.0.0.1:3000/
+      ProxyPassReverse / http://127.0.0.1:3000/
+      RequestHeader set X-Forwarded-Proto "https"
+  </VirtualHost>
   ```
 
+  `ProxyPreserveHost` et `X-Forwarded-Proto` sont nécessaires : sans eux, les formulaires du hub sont refusés (protection CSRF).
+  Le même principe vaut pour nginx (`proxy_set_header Host $host;` et `proxy_set_header X-Forwarded-Proto $scheme;`).
+- **Si rien n'occupe les ports 80 et 443**, Caddy est fourni : renseigne `HUB_DOMAINE` puis
+  `docker compose --profile caddy up -d --build`. Le certificat HTTPS est automatique.
 - La base est dans le volume Docker `hub-data`. Le service `sauvegarde` en fait une copie chaque jour
   (`HEURE_SAUVEGARDE`, 4 h par défaut) dans `./sauvegardes`, compressée et gardée `JOURS_A_GARDER` jours (14 par défaut).
   Pour une copie tout de suite : `docker compose exec sauvegarde sauvegarde.sh`.

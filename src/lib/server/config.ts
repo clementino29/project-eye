@@ -88,7 +88,7 @@ export const config = {
 			const explicite = lire('PELICAN_API_KEYS_URL');
 			if (explicite) return explicite;
 			const base = sansSlashFinal(lire('PELICAN_URL'));
-			return base ? `${base}/profile` : undefined;
+			return base ? `${base}/profile?tab=api-keys` : undefined;
 		},
 		/** Modèle d'adresse d'un serveur dans Pelican ; {id} est remplacé par l'identifiant court. */
 		get modeleUrlServeur() {
