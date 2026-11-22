@@ -1,0 +1,53 @@
+# Déploiement du hub sur le VPS : docker compose up -d --build
+# Les réglages viennent du fichier .env (copie de .env.example).
+services:
+  hub:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/hub.db
+      # Le reverse proxy indique s'il a reçu la requête en HTTPS (sert à la protection CSRF).
+      PROTOCOL_HEADER: x-forwarded-proto
+    volumes:
+      - hub-data:/data
+    # Par défaut le hub n'écoute que sur la machine : le reverse proxy
+    # (Caddy ci-dessous, ou celui qui sert déjà Pelican) le publie en HTTPS.
+    ports:
+      - "127.0.0.1:${HUB_PORT:-3000}:3000"
+
+  # Copie quotidienne de la base (sqlite3 .backup), gardée 14 jours.
+  sauvegarde:
+    build: ./docker/sauvegarde
+    restart: unless-stopped
+    environment:
+      HEURE_SAUVEGARDE: ${HEURE_SAUVEGARDE:-4}
+      JOURS_A_GARDER: ${JOURS_A_GARDER:-14}
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - hub-data:/data:ro
+      - ${DOSSIER_SAUVEGARDES:-./sauvegardes}:/sauvegardes
+
+  # Facultatif : Caddy pour le HTTPS automatique, si rien n'occupe déjà les ports 80 et 443.
+  # Activation : docker compose --profile caddy up -d
+  caddy:
+    image: caddy:2.10-alpine
+    profiles: [caddy]
+    restart: unless-stopped
+    environment:
+      HUB_DOMAINE: ${HUB_DOMAINE:?Renseigne HUB_DOMAINE dans .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - hub
+
+volumes:
+  hub-data:
+  caddy-data:
+  caddy-config:

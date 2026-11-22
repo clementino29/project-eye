@@ -1,0 +1,47 @@
+{
+  "name": "nohriancons-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hub Nohriancons : jeux en cours, parties, choix du jeu, panel serveur et statut.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@fontsource-variable/nunito-sans": "5.3.0",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.4",
+    "gamedig": "5.3.3",
+    "lucide-static": "0.460.0",
+    "openid-client": "6.8.9"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "6.0.1",
+    "@sveltejs/kit": "3.1.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.4",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "22.20.5",
+    "drizzle-kit": "0.31.11",
+    "svelte": "5.57.3",
+    "svelte-check": "4.7.7",
+    "tailwindcss": "4.3.4",
+    "typescript": "6.0.3",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
+  },
+  "imports": {
+    "#lib": "./src/lib",
+    "#lib/*": "./src/lib/*"
+  }
+}
