@@ -66,6 +66,7 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 | `AUTHENTIK_ISSUER`, `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` | Fournisseur OpenID d'Authentik. |
 | `AUTHENTIK_MEMBER_GROUP`, `AUTHENTIK_ADMIN_GROUP` | Groupes qui donnent accès au hub (par défaut `hub-membres` et `hub-admins`). |
 | `STEAM_API_KEY` | Clé Steam Web API, pour les bibliothèques. |
+| `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | Facultatif. Application Twitch pour chercher les jeux sur IGDB (titre, série, image). |
 | `PELICAN_URL` | Adresse de Sakura Panel. `PELICAN_API_KEYS_URL` et `PELICAN_SERVER_URL_TEMPLATE` sont facultatives. |
 | `KUMA_URL`, `KUMA_STATUS_SLUG` | Page de statut publique d'Uptime Kuma. |
 
@@ -86,6 +87,15 @@ Chaque membre crée une clé API client dans Pelican (*Profil › Clés API*, `/
 Le hub vérifie la clé auprès de Pelican avant de l'enregistrer, puis la garde chiffrée.
 Les liens « Ouvrir dans Sakura Panel » utilisent l'identifiant court du serveur (`/server/<id court>`).
 Les admins peuvent, depuis le Panel, relier un serveur à un jeu de la liste et régler l'adresse affichée et la sonde de joueurs (GameDig).
+
+### IGDB
+
+Dans la fenêtre « Ajouter un jeu », une recherche IGDB remplit le titre exact, la série et l'image (illustration large si IGDB en a une, sinon la jaquette). Tout reste modifiable à la main.
+
+1. Sur https://dev.twitch.tv/console/apps, crée une application (URL de redirection `http://localhost`, catégorie « Application Integration », client « Confidentiel »).
+2. Reporte son Client ID dans `IGDB_CLIENT_ID` et un nouveau secret dans `IGDB_CLIENT_SECRET`.
+
+Sans ces deux valeurs, la recherche n'apparaît pas et les jeux se saisissent à la main.
 
 ### Uptime Kuma
 

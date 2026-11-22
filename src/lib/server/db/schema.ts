@@ -48,6 +48,8 @@ export const jeux = sqliteTable('jeux', {
 		.notNull()
 		.default('a_faire'),
 	steamAppId: integer('steam_app_id'),
+	/** Fiche IGDB d'où viennent le titre, la série et l'image (vide = saisi à la main). */
+	igdbId: integer('igdb_id'),
 	ajouteLe: integer('ajoute_le').notNull().default(maintenant)
 });
 

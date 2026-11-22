@@ -1,0 +1,1 @@
+ALTER TABLE `jeux` ADD `igdb_id` integer;

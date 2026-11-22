@@ -24,7 +24,7 @@
 	let ouverte = $state<string | null>(null);
 	let menu = $state<number | null>(null);
 	let modale = $state<'nouveau' | number | null>(null);
-	let form = $state({ titre: '', serie: '', image: '', statut: 'a_faire' as StatutJeu, joueurs: [] as number[] });
+	let form = $state({ titre: '', serie: '', image: '', statut: 'a_faire' as StatutJeu, joueurs: [] as number[], igdbId: null as number | null });
 	let enregistrement = $state(false);
 
 	const cols = $derived(largeur >= 1440 ? 5 : largeur >= 1000 ? 4 : largeur >= 720 ? 3 : 2);
@@ -85,12 +85,14 @@
 	const series = $derived([...new Set(data.jeux.map((g) => g.serie).filter(Boolean))]);
 
 	function ouvrirAjout() {
-		form = { titre: '', serie: ouverte ?? '', image: '', statut: 'a_faire', joueurs: data.moi ? [data.moi.id] : [] };
+		form = { titre: '', serie: ouverte ?? '', image: '', statut: 'a_faire', joueurs: data.moi ? [data.moi.id] : [], igdbId: null };
+		viderIgdb();
 		menu = null;
 		modale = 'nouveau';
 	}
 	function ouvrirEdition(j: Jeu) {
-		form = { titre: j.titre, serie: j.serie, image: j.image, statut: j.statut, joueurs: [...j.joueurs] };
+		form = { titre: j.titre, serie: j.serie, image: j.image, statut: j.statut, joueurs: [...j.joueurs], igdbId: j.igdbId };
+		viderIgdb();
 		menu = null;
 		modale = j.id;
 	}
@@ -112,6 +114,50 @@
 	}
 	const basculerJoueur = (id: number) =>
 		(form.joueurs = form.joueurs.includes(id) ? form.joueurs.filter((x) => x !== id) : [...form.joueurs, id]);
+
+	// Recherche IGDB : remplit le titre, la série et l'image d'un clic.
+	type ResultatIgdb = { igdbId: number; titre: string; annee: number | null; serie: string | null; jaquette: string | null; banniere: string | null };
+	let rechercheIgdb = $state('');
+	let resultatsIgdb = $state<ResultatIgdb[]>([]);
+	let etatIgdb = $state<'repos' | 'charge' | 'vide' | 'erreur'>('repos');
+	let attenteIgdb: ReturnType<typeof setTimeout> | undefined;
+	let numeroIgdb = 0;
+	function viderIgdb() {
+		clearTimeout(attenteIgdb);
+		rechercheIgdb = '';
+		resultatsIgdb = [];
+		etatIgdb = 'repos';
+	}
+	function chercherIgdb() {
+		clearTimeout(attenteIgdb);
+		const q = rechercheIgdb.trim();
+		if (q.length < 2) {
+			resultatsIgdb = [];
+			etatIgdb = 'repos';
+			return;
+		}
+		etatIgdb = 'charge';
+		attenteIgdb = setTimeout(async () => {
+			const n = ++numeroIgdb;
+			try {
+				const rep = await fetch(`/jeux/igdb?q=${encodeURIComponent(q)}`);
+				if (!rep.ok) throw new Error();
+				const r = (await rep.json()) as ResultatIgdb[];
+				if (n !== numeroIgdb) return; // une recherche plus récente est partie
+				resultatsIgdb = r;
+				etatIgdb = r.length ? 'repos' : 'vide';
+			} catch {
+				if (n === numeroIgdb) etatIgdb = 'erreur';
+			}
+		}, 300);
+	}
+	function choisirIgdb(r: ResultatIgdb) {
+		form.titre = r.titre;
+		if (r.serie) form.serie = r.serie;
+		if (r.banniere) form.image = r.banniere;
+		form.igdbId = r.igdbId;
+		viderIgdb();
+	}
 
 	function fermerMenus() {
 		menu = null;
@@ -233,6 +279,28 @@
 	<Dialog titre={modale === 'nouveau' ? 'Ajouter un jeu' : 'Modifier le jeu'} onfermer={() => (modale = null)}>
 		<form class="form" onsubmit={(e) => { e.preventDefault(); enregistrer(); }}>
 			<div class="defile">
+				{#if data.igdbActif}
+					<div class="nh-field">
+						<label class="nh-field__label" for="j-igdb">Chercher sur IGDB</label>
+						<div class="nh-input"><i class={etatIgdb === 'charge' ? 'icon-loader' : 'icon-search'} aria-hidden="true"></i><input id="j-igdb" bind:value={rechercheIgdb} oninput={chercherIgdb} placeholder="Halo, Civilization…" autocomplete="off" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} /></div>
+						{#if resultatsIgdb.length}
+							<div class="igdb" role="listbox" aria-label="Résultats IGDB">
+								{#each resultatsIgdb as r (r.igdbId)}
+									<button type="button" role="option" aria-selected={form.igdbId === r.igdbId} class="nh-unset igdb-ligne" onclick={() => choisirIgdb(r)}>
+										<span class="igdb-jaq">{#if r.jaquette}<img src={r.jaquette} alt="" loading="lazy" />{/if}</span>
+										<span class="igdb-txt"><span class="igdb-nom">{r.titre}</span><span class="igdb-sub">{[r.annee, r.serie].filter(Boolean).join(' · ') || 'Sans date'}</span></span>
+									</button>
+								{/each}
+							</div>
+						{:else if etatIgdb === 'vide'}
+							<div class="nh-field__hint">Rien trouvé sur IGDB. Tu peux remplir à la main.</div>
+						{:else if etatIgdb === 'erreur'}
+							<div class="nh-field__hint">IGDB ne répond pas. Tu peux remplir à la main.</div>
+						{:else}
+							<div class="nh-field__hint">Remplit le titre, la série et l'image. Tout reste modifiable.</div>
+						{/if}
+					</div>
+				{/if}
 				<div class="apercu">{@render couverture({ titre: form.titre || 'Nouveau jeu', serie: form.serie, image: form.image.trim() }, 'var(--text-xl)', 'var(--radius-md)')}</div>
 				<div class="nh-field"><label class="nh-field__label" for="j-titre">Titre</label><div class="nh-input"><input id="j-titre" bind:value={form.titre} placeholder="Halo 2" required /></div></div>
 				<div class="nh-field">
@@ -481,6 +549,58 @@
 		position: relative;
 		flex: none;
 		height: 120px;
+	}
+	.igdb {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--space-1);
+		border-radius: var(--radius-md);
+		background: var(--surface-2);
+		border: 1px solid var(--border-subtle);
+		max-height: 260px;
+		overflow: auto;
+	}
+	.igdb-ligne {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+	}
+	.igdb-ligne:hover,
+	.igdb-ligne:focus-visible {
+		background: var(--surface-hover);
+	}
+	.igdb-jaq {
+		flex: none;
+		width: 30px;
+		height: 40px;
+		border-radius: 4px;
+		overflow: hidden;
+		background: var(--petrol-800);
+	}
+	.igdb-jaq img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.igdb-txt {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.igdb-nom {
+		font: var(--type-label);
+		color: var(--fg-1);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.igdb-sub {
+		font-size: 12px;
+		color: var(--fg-3);
 	}
 	.groupe {
 		display: flex;

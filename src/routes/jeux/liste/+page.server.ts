@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, schema } from '#lib/server/db/index.ts';
 import { exigerMembre } from '#lib/server/garde.ts';
 import { tousLesMembres } from '#lib/server/membres.ts';
+import { config } from '#lib/server/config.ts';
 import { entier, ids, parmi, texte, urlImage } from '#lib/server/formulaires.ts';
 import { ORDRE_JEU } from '#lib/libelles.ts';
 
@@ -20,10 +21,11 @@ export const load = ({ locals }) => {
 			serie: j.serie ?? '',
 			image: j.image ?? '',
 			statut: j.statut,
+			igdbId: j.igdbId,
 			ajouteLe: j.ajouteLe,
 			joueurs: joueurs.filter((x) => x.jeuId === j.id).map((x) => x.membreId)
 		}));
-	return { jeux, membres: tousLesMembres() };
+	return { jeux, membres: tousLesMembres(), igdbActif: config.igdb.configure };
 };
 
 function lireJeu(f: FormData) {
@@ -33,7 +35,8 @@ function lireJeu(f: FormData) {
 		titre,
 		serie: texte(f, 'serie', 80) || null,
 		image: urlImage(texte(f, 'image', 500)),
-		statut: parmi(texte(f, 'statut'), ORDRE_JEU) ?? 'a_faire'
+		statut: parmi(texte(f, 'statut'), ORDRE_JEU) ?? 'a_faire',
+		igdbId: entier(f, 'igdbId')
 	};
 }
 

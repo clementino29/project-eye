@@ -108,3 +108,9 @@ button {
 	display: inline-block;
 	animation: nh-spin 1s linear infinite;
 }
+
+/* Le champ porte déjà l'anneau de focus (.nh-input:focus-within) : pas de second anneau sur l'input. */
+.nh-input input:focus-visible,
+.nh-input select:focus-visible {
+	box-shadow: none;
+}

@@ -79,6 +79,18 @@ export const config = {
 			return lire('STEAM_API_KEY');
 		}
 	},
+	/** IGDB passe par une application Twitch (https://dev.twitch.tv/console/apps). */
+	igdb: {
+		get clientId() {
+			return lire('IGDB_CLIENT_ID');
+		},
+		get secret() {
+			return lire('IGDB_CLIENT_SECRET');
+		},
+		get configure() {
+			return !!(lire('IGDB_CLIENT_ID') && lire('IGDB_CLIENT_SECRET'));
+		}
+	},
 	pelican: {
 		get url() {
 			return sansSlashFinal(lire('PELICAN_URL'));
