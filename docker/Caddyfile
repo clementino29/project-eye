@@ -1,0 +1,5 @@
+# HTTPS automatique (Let's Encrypt) pour le hub.
+{$HUB_DOMAINE} {
+	encode zstd gzip
+	reverse_proxy hub:3000
+}
