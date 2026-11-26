@@ -1,16 +1,32 @@
 import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
-import { membreDeLaSession } from '#lib/server/sessions.ts';
+import { dev } from '$app/env';
+import { auth, COOKIE_DEV, FOURNISSEUR } from '#lib/server/auth.ts';
+import { config } from '#lib/server/config.ts';
 import { membreParId } from '#lib/server/membres.ts';
 
 /** Pages visibles sans être connecté. */
-const PUBLIQUES = [/^\/$/, /^\/connexion(\/|$)/, /^\/auth\//, /^\/sante$/];
+const PUBLIQUES = [/^\/$/, /^\/connexion(\/|$)/, /^\/sante$/];
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const id = membreDeLaSession(event.cookies);
-	event.locals.membre = (id !== undefined && membreParId(id)) || null;
-
 	const chemin = event.url.pathname;
+
+	// Retour d'Authentik : l'adresse déclarée dans Authentik depuis la v1 est gardée,
+	// et renvoyée vers la route de Better Auth.
+	if (chemin === '/auth/callback') {
+		const cible = new URL(event.request.url);
+		cible.pathname = `/api/auth/callback/${FOURNISSEUR}`;
+		return auth().handler(new Request(cible, event.request));
+	}
+	if (chemin.startsWith('/api/auth/')) return auth().handler(event.request);
+
+	const session = await auth().api.getSession({ headers: event.request.headers });
+	event.locals.membre = (session && membreParId(Number(session.user.id))) || null;
+	if (!event.locals.membre && dev && config.connexionDev) {
+		const id = Number(event.cookies.get(COOKIE_DEV));
+		if (id) event.locals.membre = membreParId(id) ?? null;
+	}
+
 	if (!event.locals.membre && !PUBLIQUES.some((r) => r.test(chemin))) {
 		if (event.request.method !== 'GET') {
 			return new Response('Connexion requise', { status: 401 });

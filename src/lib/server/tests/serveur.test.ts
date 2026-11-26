@@ -3,7 +3,7 @@ import { chiffrer, dechiffrer, hacher } from '../crypto.ts';
 import { masquerCle, permissionsDepuisMeta, versServeur, ClientPelican, ErreurPelican } from '../pelican.ts';
 import { analyserFiche, lireEntreeSteam, nomCourt } from '../steam.ts';
 import { assembler } from '../kuma.ts';
-import { accesDepuisGroupes } from '../membres.ts';
+import { accesDepuisGroupes } from '../auth.ts';
 
 const CLE = Buffer.alloc(32, 7).toString('base64');
 

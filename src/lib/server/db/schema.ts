@@ -2,17 +2,22 @@
 // Les données Steam (jeux_steam, possessions, envies) restent séparées des jeux
 // que le groupe suit à la main (jeux).
 import { sql } from 'drizzle-orm';
-import { integer, primaryKey, sqliteTable, text, index } from 'drizzle-orm/sqlite-core';
+import { integer, primaryKey, sqliteTable, text, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 const maintenant = sql`(unixepoch() * 1000)`;
 
 export const membres = sqliteTable('membres', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
-	/** Identifiant OIDC « sub » donné par Authentik. */
+	/** Identifiant OIDC « sub » donné par Authentik (aussi dans auth_comptes). */
 	authentikId: text('authentik_id').notNull().unique(),
 	pseudo: text('pseudo').notNull(),
+	/** Nom affiché (champ « name » de Better Auth). */
 	nom: text('nom').notNull(),
 	email: text('email'),
+	/** Champ « emailVerified » de Better Auth (repris d'Authentik). */
+	emailVerifie: integer('email_verifie', { mode: 'boolean' }).notNull().default(false),
+	/** Image envoyée par Authentik (champ « image » de Better Auth), distincte de la photo du hub. */
+	imageAuthentik: text('image_authentik'),
 	/** Photo recadrée, en data URL JPEG (320 × 320). */
 	photo: text('photo'),
 	photoMaj: integer('photo_maj'),
@@ -26,18 +31,74 @@ export const membres = sqliteTable('membres', {
 	clePelicanChiffree: text('cle_pelican_chiffree'),
 	clePelicanAjouteeLe: integer('cle_pelican_ajoutee_le'),
 	role: text('role', { enum: ['membre', 'admin'] }).notNull().default('membre'),
-	creeLe: integer('cree_le').notNull().default(maintenant),
+	/** En millisecondes, comme avant : seul le type TypeScript change (Date). */
+	creeLe: integer('cree_le', { mode: 'timestamp_ms' }).notNull().default(maintenant),
+	majLe: integer('maj_le', { mode: 'timestamp_ms' }),
 	derniereConnexion: integer('derniere_connexion')
 });
 
-/** Sessions de connexion au hub (le jeton n'est stocké que haché). */
-export const sessionsWeb = sqliteTable('sessions_web', {
-	id: text('id').primaryKey(),
-	membreId: integer('membre_id')
-		.notNull()
-		.references(() => membres.id, { onDelete: 'cascade' }),
-	expireLe: integer('expire_le').notNull()
-});
+// Tables de Better Auth (session, account, verification). Les identifiants sont
+// des entiers auto-incrémentés, comme ceux des membres (generateId: "serial").
+// Les clés TypeScript suivent les noms de champs de Better Auth.
+
+/** Sessions de connexion au hub. */
+export const authSessions = sqliteTable(
+	'auth_sessions',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		token: text('token').notNull().unique(),
+		userId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		expiresAt: integer('expire_le', { mode: 'timestamp_ms' }).notNull(),
+		ipAddress: text('adresse_ip'),
+		userAgent: text('navigateur'),
+		createdAt: integer('cree_le', { mode: 'timestamp_ms' }).notNull(),
+		updatedAt: integer('maj_le', { mode: 'timestamp_ms' }).notNull()
+	},
+	(t) => [index('auth_sessions_membre').on(t.userId)]
+);
+
+/** Comptes liés à un membre : ici, son compte Authentik. */
+export const authComptes = sqliteTable(
+	'auth_comptes',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** « sub » chez le fournisseur. */
+		accountId: text('compte_id').notNull(),
+		providerId: text('fournisseur').notNull(),
+		userId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		accessToken: text('access_token'),
+		refreshToken: text('refresh_token'),
+		idToken: text('id_token'),
+		accessTokenExpiresAt: integer('access_token_expire_le', { mode: 'timestamp_ms' }),
+		refreshTokenExpiresAt: integer('refresh_token_expire_le', { mode: 'timestamp_ms' }),
+		scope: text('scope'),
+		password: text('mot_de_passe'),
+		createdAt: integer('cree_le', { mode: 'timestamp_ms' }).notNull(),
+		updatedAt: integer('maj_le', { mode: 'timestamp_ms' }).notNull()
+	},
+	(t) => [
+		uniqueIndex('auth_comptes_fournisseur').on(t.providerId, t.accountId),
+		index('auth_comptes_membre').on(t.userId)
+	]
+);
+
+/** Valeurs temporaires de Better Auth (état OAuth, etc.). */
+export const authVerifications = sqliteTable(
+	'auth_verifications',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		identifier: text('identifiant').notNull(),
+		value: text('valeur').notNull(),
+		expiresAt: integer('expire_le', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: integer('cree_le', { mode: 'timestamp_ms' }).notNull(),
+		updatedAt: integer('maj_le', { mode: 'timestamp_ms' }).notNull()
+	},
+	(t) => [index('auth_verifications_identifiant').on(t.identifier)]
+);
 
 export const jeux = sqliteTable('jeux', {
 	id: integer('id').primaryKey({ autoIncrement: true }),

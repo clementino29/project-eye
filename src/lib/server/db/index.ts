@@ -16,8 +16,32 @@ export function ouvrirBase(fichier: string): Db {
 	sqlite.pragma('foreign_keys = ON');
 	sqlite.pragma('busy_timeout = 5000');
 	const db = drizzle(sqlite, { schema });
-	migrate(db, { migrationsFolder: dossierMigrations() });
+	const dossier = dossierMigrations();
+	if (fichier !== ':memory:') copierAvantMigration(sqlite, fichier, dossier);
+	migrate(db, { migrationsFolder: dossier });
 	return db;
+}
+
+/**
+ * Si des migrations attendent, copie d'abord la base à côté d'elle
+ * (hub.db.avant-migration-<n>.bak), pour pouvoir revenir en arrière.
+ */
+function copierAvantMigration(sqlite: Database.Database, fichier: string, dossier: string) {
+	let attendues = 0;
+	try {
+		const journal = JSON.parse(fs.readFileSync(path.join(dossier, 'meta', '_journal.json'), 'utf8')) as { entries: unknown[] };
+		attendues = journal.entries.length;
+	} catch {
+		return;
+	}
+	const table = sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'").get();
+	if (!table) return; // base neuve : rien à protéger
+	const { n } = sqlite.prepare('SELECT count(*) AS n FROM __drizzle_migrations').get() as { n: number };
+	if (n >= attendues) return;
+	const copie = `${path.resolve(fichier)}.avant-migration-${n}.bak`;
+	if (fs.existsSync(copie)) return;
+	sqlite.prepare('VACUUM INTO ?').run(copie);
+	console.info(`[base] copie de sécurité avant migration : ${copie}`);
 }
 
 function dossierMigrations() {

@@ -38,6 +38,10 @@ export const config = {
 	get cleChiffrement() {
 		return lire('HUB_ENCRYPTION_KEY');
 	},
+	/** Facultatif : sans lui, le secret de Better Auth est dérivé de HUB_ENCRYPTION_KEY. */
+	get betterAuthSecret() {
+		return lire('BETTER_AUTH_SECRET');
+	},
 	/** Connexion de test sans Authentik, seulement en développement. */
 	get connexionDev() {
 		return lire('DEV_LOGIN') === '1';

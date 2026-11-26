@@ -22,7 +22,7 @@ C'est donc toujours dans Pelican que se donnent les permissions sur les serveurs
 
 - SvelteKit 3 (Svelte 5), adapter Node, Tailwind 4 et le design system Nohriancons (`src/lib/styles/nohriancons.css`).
 - SQLite (better-sqlite3 + Drizzle). Les migrations du dossier `drizzle/` s'appliquent au démarrage.
-- Connexion OpenID Connect avec Authentik (openid-client, PKCE).
+- Connexion OpenID Connect avec Authentik, par [Better Auth](https://www.better-auth.com/) (plugin OAuth générique, PKCE). La table `membres` sert de table des utilisateurs de Better Auth.
 - Les imports internes passent par `#lib/…` (sous-chemins Node, `$lib` n'existe plus avec Kit 3).
 
 ## Développer
@@ -61,7 +61,8 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 | Variable | Rôle |
 | --- | --- |
 | `ORIGIN` | Adresse publique du hub, par exemple `https://hub.exemple.fr`. Sert d'adresse de retour pour Authentik. |
-| `HUB_ENCRYPTION_KEY` | 32 octets en base64. Chiffre les clés Pelican. Si elle change, chacun devra recoller sa clé. |
+| `HUB_ENCRYPTION_KEY` | 32 octets en base64. Chiffre les clés Pelican. Si elle change, chacun devra recoller sa clé (et se reconnecter). |
+| `BETTER_AUTH_SECRET` | Facultatif. Signe les cookies de connexion. Sans lui, il est dérivé de `HUB_ENCRYPTION_KEY`. |
 | `DATABASE_PATH` | Fichier SQLite (`/data/hub.db` dans Docker). |
 | `AUTHENTIK_ISSUER`, `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` | Fournisseur OpenID d'Authentik. |
 | `AUTHENTIK_MEMBER_GROUP`, `AUTHENTIK_ADMIN_GROUP` | Groupes qui donnent accès au hub (par défaut `hub-membres` et `hub-admins`). |
@@ -73,13 +74,14 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 ### Authentik
 
 1. **Applications › Fournisseurs › Créer › OAuth2/OpenID** :
-   type de client *Confidentiel*, URI de redirection `https://hub.exemple.fr/auth/callback` (ton `ORIGIN` + `/auth/callback`),
+   type de client *Confidentiel*, URI de redirection `https://hub.exemple.fr/auth/callback` (ton `ORIGIN` + `/auth/callback` ; le hub la transmet à Better Auth),
    portées `openid`, `profile` et `email`. La portée `profile` par défaut d'Authentik envoie déjà les groupes (`groups`).
 2. **Applications › Créer** : nom « Nohriancons », slug `hub`, avec ce fournisseur.
    L'issuer à mettre dans `AUTHENTIK_ISSUER` est affiché sur la page du fournisseur (`…/application/o/hub/`).
 3. Crée les groupes `hub-membres` et `hub-admins` et ajoute-y les membres. Sans l'un des deux, la connexion est refusée.
 
-Le pseudo, le nom et l'e-mail viennent d'Authentik à chaque connexion ; la page Compte renvoie vers Authentik pour les modifier.
+Le pseudo, le nom, l'e-mail et le rôle viennent d'Authentik à chaque connexion ; la page Compte renvoie vers Authentik pour les modifier.
+Un compte sorti des deux groupes ne peut plus se connecter ; ses sessions ouvertes expirent au bout de 30 jours au plus.
 
 ### Sakura Panel (Pelican)
 
@@ -138,4 +140,5 @@ docker compose up -d --build
   Pour une copie tout de suite : `docker compose exec sauvegarde sauvegarde.sh`.
 - Pour restaurer : arrêter le hub, décompresser la copie et la placer à la place de `/data/hub.db` dans le volume.
 - Mise à jour : `git pull && docker compose up -d --build`. Les migrations s'appliquent au démarrage.
+  Avant d'en appliquer, le hub copie la base à côté d'elle (`/data/hub.db.avant-migration-<n>.bak` dans le volume).
 - `GET /sante` répond `ok` quand le hub tourne (utilisé par le healthcheck et utilisable dans Uptime Kuma).

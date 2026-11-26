@@ -1,44 +1,22 @@
 import { eq } from 'drizzle-orm';
 import { db, schema } from './db/index.ts';
-import { config } from './config.ts';
 import type { Membre } from './db/schema.ts';
 
-export interface ProfilOidc {
-	sub: string;
-	preferred_username?: string;
-	nickname?: string;
-	name?: string;
-	email?: string;
-	groups?: unknown;
-}
-
-export type ResultatAcces = { autorise: true; role: 'membre' | 'admin' } | { autorise: false };
-
-/** Le rôle est lu dans les groupes Authentik ; sans groupe du hub, pas d'accès. */
-export function accesDepuisGroupes(groupes: unknown): ResultatAcces {
-	const liste = Array.isArray(groupes) ? groupes.map(String) : [];
-	if (liste.includes(config.authentik.groupeAdmins)) return { autorise: true, role: 'admin' };
-	if (liste.includes(config.authentik.groupeMembres)) return { autorise: true, role: 'membre' };
-	return { autorise: false };
-}
-
-/** Crée ou met à jour le membre à chaque connexion (pseudo, nom, e-mail et rôle viennent d'Authentik). */
-export function enregistrerConnexion(profil: ProfilOidc, role: 'membre' | 'admin'): Membre {
-	const pseudo = profil.preferred_username || profil.nickname || profil.email?.split('@')[0] || 'membre';
+/** Connexion de test (DEV_LOGIN) : crée ou met à jour un membre fictif. */
+export function enregistrerMembreDev(pseudo: string, role: 'membre' | 'admin'): Membre {
 	const valeurs = {
 		pseudo,
-		nom: profil.name || pseudo,
-		email: profil.email ?? null,
+		nom: pseudo[0].toUpperCase() + pseudo.slice(1),
+		email: `${pseudo}@exemple.fr`,
 		role,
 		derniereConnexion: Date.now()
 	};
-	const [membre] = db()
+	return db()
 		.insert(schema.membres)
-		.values({ authentikId: profil.sub, ...valeurs })
+		.values({ authentikId: `dev:${pseudo}`, ...valeurs })
 		.onConflictDoUpdate({ target: schema.membres.authentikId, set: valeurs })
 		.returning()
-		.all();
-	return membre;
+		.get();
 }
 
 export function membreParId(id: number): Membre | undefined {
