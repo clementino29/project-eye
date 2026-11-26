@@ -31,6 +31,11 @@ export const load = ({ locals }) => {
 	const proprietaires = new Map<number, number[]>();
 	for (const p of possessions) proprietaires.set(p.steamAppId, [...(proprietaires.get(p.steamAppId) ?? []), p.membreId]);
 
+	// Les images Steam sont bloquées : on reprend l'image du même jeu dans la Liste des jeux, s'il y en a une.
+	const images = new Map<string, string>();
+	for (const j of base.select({ titre: schema.jeux.titre, image: schema.jeux.image }).from(schema.jeux).all())
+		if (j.image) images.set(j.titre.trim().toLowerCase(), j.image);
+
 	const jeux: JeuCommun[] = fiches
 		.map((f) => ({
 			id: f.steamAppId,
@@ -41,7 +46,8 @@ export const load = ({ locals }) => {
 			max: f.joueursMax,
 			genres: f.genres,
 			gratuit: f.gratuit,
-			proprietaires: proprietaires.get(f.steamAppId) ?? []
+			proprietaires: proprietaires.get(f.steamAppId) ?? [],
+			image: images.get(f.nom.trim().toLowerCase()) ?? null
 		}))
 		.sort((a, b) => b.proprietaires.length - a.proprietaires.length || a.nom.localeCompare(b.nom, 'fr'));
 

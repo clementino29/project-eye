@@ -1,18 +1,18 @@
-// Libellés et couleurs partagés (statuts des jeux et des parties, comme dans le prototype).
+// Libellés et couleurs partagés (statuts des jeux et des parties, couleurs vives des pastilles du design).
 
 export const STATUTS_JEU = {
-	en_cours: { l: 'En cours', ton: 'info', c: 'var(--info-fg)' },
-	en_pause: { l: 'En pause', ton: 'warning', c: 'var(--warning-fg)' },
+	en_cours: { l: 'En cours', ton: 'info', c: '#3d9bff' },
+	en_pause: { l: 'En pause', ton: 'warning', c: '#ffb21e' },
 	a_faire: { l: 'À faire', ton: 'neutral', c: 'var(--night-600)' },
-	termine: { l: 'Terminé', ton: 'success', c: 'var(--success-fg)' }
+	termine: { l: 'Terminé', ton: 'success', c: '#2fe39a' }
 } as const;
 export type StatutJeu = keyof typeof STATUTS_JEU;
 export const ORDRE_JEU: StatutJeu[] = ['en_cours', 'en_pause', 'a_faire', 'termine'];
 
 export const STATUTS_PARTIE = {
-	en_cours: { l: 'En cours', pl: 'en cours', ton: 'info', c: 'var(--info-fg)' },
-	en_pause: { l: 'En pause', pl: 'en pause', ton: 'warning', c: 'var(--warning-fg)' },
-	terminee: { l: 'Terminée', pl: 'terminées', ton: 'success', c: 'var(--success-fg)' }
+	en_cours: { l: 'En cours', pl: 'en cours', ton: 'info', c: '#3d9bff' },
+	en_pause: { l: 'En pause', pl: 'en pause', ton: 'warning', c: '#ffb21e' },
+	terminee: { l: 'Terminée', pl: 'terminées', ton: 'success', c: '#2fe39a' }
 } as const;
 export type StatutPartie = keyof typeof STATUTS_PARTIE;
 export const ORDRE_PARTIE: StatutPartie[] = ['en_cours', 'en_pause', 'terminee'];

@@ -3,18 +3,16 @@
 	import { page } from '$app/state';
 	import AvatarGroup from '#lib/components/AvatarGroup.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
+	import Lueur from '#lib/components/Lueur.svelte';
+	import StatusPill from '#lib/components/StatusPill.svelte';
+	import { artJeu, fondImage } from '#lib/design/art.ts';
+	import { PASTILLES_JEU } from '#lib/design/pastilles.ts';
 	import { envoyer } from '#lib/actions.ts';
 	import { ORDRE_JEU, STATUTS_JEU as ST, type StatutJeu } from '#lib/libelles.ts';
 
 	let { data } = $props();
 	type Jeu = (typeof data.jeux)[number];
 
-	const TEINTES = ['var(--petrol-500)', 'var(--petrol-700)', 'var(--petrol-400)', 'var(--petrol-800)', 'var(--night-600)'];
-	const teinte = (nom: string) => {
-		let h = 0;
-		for (const ch of nom || '') h = (h * 31 + ch.charCodeAt(0)) % 997;
-		return TEINTES[h % TEINTES.length];
-	};
 
 	let largeur = $state(1200);
 	let recherche = $state('');
@@ -85,7 +83,14 @@
 		return res;
 	});
 
-	const resume = $derived(ORDRE_JEU.map((k) => ({ l: ST[k].l.toLowerCase(), n: data.jeux.filter((g) => g.statut === k).length, c: ST[k].c })));
+	const resume = $derived(ORDRE_JEU.map((k) => ({ k, l: ST[k].l.toLowerCase(), n: data.jeux.filter((g) => g.statut === k).length })));
+	// Fond flou : la série ouverte, sinon un jeu en cours qui a une image, sinon le premier jeu en cours.
+	const vedette = $derived.by(() => {
+		const serie = ouverte ? data.jeux.find((g) => g.serie === ouverte && g.image) ?? data.jeux.find((g) => g.serie === ouverte) : undefined;
+		const enCours = data.jeux.filter((g) => g.statut === 'en_cours');
+		const j = serie ?? enCours.find((g) => g.image) ?? enCours[0] ?? data.jeux[0];
+		return j ? { art: artJeu(ouverte ?? (j.serie || j.titre)), image: j.image || null } : null;
+	});
 	const series = $derived([...new Set(data.jeux.map((g) => g.serie).filter(Boolean))]);
 
 	function ouvrirAjout() {
@@ -172,15 +177,18 @@
 <svelte:window bind:innerWidth={largeur} onclick={fermerMenus} />
 
 {#snippet couverture(j: { titre: string; serie: string; image: string }, taille: string, rayon = 'var(--radius-lg)')}
-	<div class="couv" style:border-radius={rayon} style:background-color={j.image ? 'var(--surface-2)' : teinte(j.serie || j.titre)} style:background-image={j.image ? `url("${j.image}")` : 'none'}>
-		{#if !j.image}<div class="couv-titre" style:font-size={taille}>{j.titre}</div>{/if}
+	{@const art = artJeu(j.serie || j.titre)}
+	<div class="couv" style:border-radius={rayon} style:background-color={art.solid} style:background-image={fondImage(art, j.image)}>
+		{#if !j.image}
+			<div class="couv-titre" style:font-size={taille}><i class="icon-{art.icon} filigrane" aria-hidden="true"></i><span>{j.titre}</span></div>
+		{/if}
 	</div>
 {/snippet}
 
 {#snippet statut(j: Jeu)}
 	<div class="statut">
 		<button type="button" class="nh-unset" style:cursor={edition ? 'pointer' : 'default'} aria-haspopup={edition ? 'menu' : undefined} aria-expanded={edition ? menu === j.id : undefined} onclick={(e) => { e.stopPropagation(); if (edition) menu = menu === j.id ? null : j.id; }}>
-			<span class="nh-badge nh-badge--{ST[j.statut].ton}"><span class="nh-badge__dot"></span>{ST[j.statut].l}{#if edition}<i class="icon-chevron-down" style="font-size:12px" aria-hidden="true"></i>{/if}</span>
+			<span class="pill-statut"><StatusPill pastille={PASTILLES_JEU[j.statut]} />{#if edition}<i class="icon-chevron-down" style="font-size:12px;color:var(--fg-2)" aria-hidden="true"></i>{/if}</span>
 		</button>
 		{#if edition}
 			<span style="margin-left:auto"><button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Modifier {j.titre}" title="Modifier" onclick={() => ouvrirEdition(j)}><i class="icon-pencil" aria-hidden="true"></i></button></span>
@@ -188,12 +196,14 @@
 		{#if menu === j.id}
 			<div class="nh-menu" role="menu" style="top:calc(100% + 6px);left:0">
 				{#each ORDRE_JEU as k (k)}
-					<button type="button" role="menuitemradio" aria-checked={k === j.statut} aria-current={k === j.statut} onclick={(e) => { e.stopPropagation(); changerStatut(j, k); }}><span class="nh-dot" style:background={ST[k].c}></span>{ST[k].l}</button>
+					<button type="button" role="menuitemradio" aria-checked={k === j.statut} aria-current={k === j.statut} onclick={(e) => { e.stopPropagation(); changerStatut(j, k); }}><StatusPill pastille={PASTILLES_JEU[k]} taille="rond" />{ST[k].l}</button>
 				{/each}
 			</div>
 		{/if}
 	</div>
 {/snippet}
+
+{#if vedette}<Lueur jaquette={vedette} />{:else}<Lueur />{/if}
 
 <main class="nh-page" style="gap:var(--space-8)">
 	<header class="entete">
@@ -201,7 +211,7 @@
 			<div class="col">
 				<h1>Liste des jeux en cours</h1>
 				<div class="resume">
-					{#each resume as s (s.l)}<span><span class="nh-dot" style:background={s.c}></span>{s.n} {s.l}</span>{/each}
+					{#each resume as s (s.l)}<span><StatusPill pastille={PASTILLES_JEU[s.k]} taille="rond" />{s.n} {s.l}</span>{/each}
 				</div>
 			</div>
 			<div class="boutons">
@@ -376,7 +386,7 @@
 		flex-wrap: wrap;
 		gap: var(--space-4);
 		font: var(--type-body-sm);
-		color: var(--fg-3);
+		color: var(--fg-2);
 	}
 	.resume > span {
 		display: flex;
@@ -421,10 +431,36 @@
 		padding: var(--space-4);
 		display: flex;
 		align-items: flex-end;
-		font-weight: var(--weight-bold);
+		font-weight: 800;
 		line-height: var(--leading-tight);
 		letter-spacing: var(--tracking-tight);
-		color: var(--fg-1);
+		color: #fff;
+		text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+	}
+	.couv-titre span {
+		position: relative;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	@media (max-width: 559px) {
+		.couv-titre {
+			font-size: var(--text-lg) !important;
+		}
+	}
+	.filigrane {
+		position: absolute;
+		right: -8px;
+		top: 50%;
+		transform: translateY(-50%) rotate(-12deg);
+		font-size: 108px;
+		line-height: 1;
+		color: rgba(255, 255, 255, 0.2);
+		text-shadow: none;
+	}
+	.pill-statut {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 	}
 	.pile {
 		display: flex;

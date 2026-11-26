@@ -174,6 +174,7 @@
 					class:actif={actif === s.cle}
 					aria-current={actif === s.cle ? 'page' : undefined}
 					target={s.externe ? '_blank' : undefined}
+					title={s.externe ? 'S’ouvre dans un nouvel onglet' : undefined}
 					rel={s.externe ? 'noopener noreferrer' : undefined}
 				>
 					{@render contenu(s)}
@@ -200,6 +201,7 @@
 								href={s.href}
 								class:actif={actif === s.cle}
 								target={s.externe ? '_blank' : undefined}
+					title={s.externe ? 'S’ouvre dans un nouvel onglet' : undefined}
 								rel={s.externe ? 'noopener noreferrer' : undefined}
 								onclick={fermer}
 							>
@@ -287,6 +289,7 @@
 						href={s.href}
 						class:actif={actif === s.cle}
 						target={s.externe ? '_blank' : undefined}
+					title={s.externe ? 'S’ouvre dans un nouvel onglet' : undefined}
 						rel={s.externe ? 'noopener noreferrer' : undefined}
 						onclick={fermer}>{@render contenu(s)}</a
 					>

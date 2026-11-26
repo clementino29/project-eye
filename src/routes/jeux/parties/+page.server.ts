@@ -13,6 +13,9 @@ export const load = ({ locals }) => {
 	const base = db();
 	const participations = base.select().from(schema.participations).all();
 	const sessions = base.select().from(schema.sessionsPartie).all();
+	// Image du jeu (liste des jeux) pour les vignettes et le fond flou.
+	const images = new Map<number, string>();
+	for (const j of base.select({ id: schema.jeux.id, image: schema.jeux.image }).from(schema.jeux).all()) if (j.image) images.set(j.id, j.image);
 	const parties = base
 		.select()
 		.from(schema.parties)
@@ -21,6 +24,7 @@ export const load = ({ locals }) => {
 			id: p.id,
 			nom: p.nom,
 			jeu: p.jeuNom,
+			image: (p.jeuId && images.get(p.jeuId)) || null,
 			statut: p.statut,
 			toursMax: p.toursMax,
 			gagnantId: p.gagnantId,

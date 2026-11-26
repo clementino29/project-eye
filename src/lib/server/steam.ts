@@ -214,4 +214,3 @@ export async function synchroniserTout(steam = new ClientSteam()) {
 	return { membres: liés.length, erreurs };
 }
 
-export { imageSteam } from '../quoi-faire.ts';

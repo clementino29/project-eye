@@ -6,13 +6,14 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import AvatarGroup from '#lib/components/AvatarGroup.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
+	import Lueur from '#lib/components/Lueur.svelte';
+	import { artJeu, fondImage } from '#lib/design/art.ts';
 	import Tabs from '#lib/components/Tabs.svelte';
 	import { envoyer } from '#lib/actions.ts';
 	import { ilYa } from '#lib/libelles.ts';
 	import { toasts } from '#lib/toasts.svelte.ts';
 	import {
 		MODES,
-		imageSteam,
 		jeuxEnCommun,
 		jeuxPresque,
 		libelleJoueurs,
@@ -172,16 +173,29 @@
 		if (!fiche) return;
 		if (await envoyer('?/fiche', { appid: fiche.appid, mode: fiche.mode, joueursMax: fiche.max, court: fiche.court })) fiche = null;
 	}
-	const masquer = (e: Event) => ((e.currentTarget as HTMLImageElement).style.display = 'none');
+	// Fond flou : le jeu tiré par la roue, sinon le dernier validé, sinon le premier jeu en commun.
+	const vedette = $derived.by(() => {
+		const j = (gagnant !== null ? data.jeux.find((x) => x.id === gagnant) : undefined) ?? (data.dernier ? data.jeux.find((x) => x.nom === data.dernier!.nom) : undefined) ?? communs[0] ?? data.jeux[0];
+		return j ? { art: artJeu(j.nom), image: j.image ?? null } : null;
+	});
 </script>
 
 <svelte:head><title>Quoi faire ? · Nohriancons</title></svelte:head>
 
+{#snippet jaquette(j: JeuCommun, forme: 'banniere' | 'vignette')}
+	{@const art = artJeu(j.nom)}
+	<div class={forme} aria-hidden={forme === 'vignette' ? 'true' : undefined} style:background-color={art.solid} style:background-image={fondImage(art, j.image)}>
+		{#if !j.image}
+			<i class="icon-{art.icon} filigrane" aria-hidden="true"></i>
+			{#if forme === 'banniere'}<span class="j-titre">{j.nom}</span>{/if}
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet carte(j: JeuCommun, manquant: number | null)}
 	<div class="nh-card jeu" class:presque={manquant !== null}>
-		<div class="banniere">
-			{j.nom}
-			<img src={imageSteam(j.id)} alt="" loading="lazy" onerror={masquer} />
+		<div class="b-cadre">
+			{@render jaquette(j, 'banniere')}
 			{#if j.gratuit}<span class="coin"><span class="nh-badge nh-badge--success">Gratuit</span></span>{/if}
 			{#if connecte}<button type="button" class="nh-btn nh-iconbtn nh-btn--secondary nh-btn--sm corriger" aria-label="Corriger la fiche de {j.nom}" title="Corriger la fiche" onclick={() => ouvrirFiche(j)}><i class="icon-pencil" aria-hidden="true"></i></button>{/if}
 		</div>
@@ -202,6 +216,8 @@
 		</div>
 	</div>
 {/snippet}
+
+{#if vedette}<Lueur jaquette={vedette} />{:else}<Lueur />{/if}
 
 <main class="nh-page" style="gap:20px">
 	<div class="entete">
@@ -315,7 +331,7 @@
 							{@const v = enviesDe(j.id)}
 							{@const mien = !!data.moi && (data.envies[j.id] ?? []).includes(data.moi.id)}
 							<div class="rang">
-								<div class="vignette"><img src={imageSteam(j.id, 'capsule')} alt="" loading="lazy" onerror={masquer} /></div>
+								{@render jaquette(j, 'vignette')}
 								<div style="min-width:0"><div class="r-nom">{j.nom}</div><div class="r-info">{mode(j)} · {libelleJoueurs(j.max)}</div></div>
 								<AvatarGroup personnes={v.map((id) => ({ nom: nomComplet(id), photo: data.membres.find((m) => m.id === id)?.photo }))} taille={24} max={4} />
 								<button type="button" class="nh-tag nh-tag--clickable" class:nh-tag--selected={mien} aria-pressed={mien} aria-label="J'ai envie de {j.nom}" onclick={() => envoyer('?/envie', { appid: j.id }, { silencieux: true })}><i class="icon-heart" aria-hidden="true"></i>{v.length}</button>
@@ -326,7 +342,7 @@
 							<div class="nh-overline" style="padding:20px 0 4px">Pas dans la roue</div>
 							{#each horsRoue as j (j.id)}
 								<div class="rang hors">
-									<div class="vignette"><img src={imageSteam(j.id, 'capsule')} alt="" loading="lazy" onerror={masquer} style="filter:grayscale(1)" /></div>
+									<div style="filter:grayscale(1)">{@render jaquette(j, 'vignette')}</div>
 									<div class="r-nom barre">{j.nom}</div>
 									<span class="nh-badge nh-badge--neutral">{tires.includes(j.id) ? 'Déjà tiré' : 'Retiré'}</span>
 									<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Remettre {j.nom} dans la roue" title="Remettre dans la roue" onclick={() => basculerHorsRoue(j.id)}><i class="icon-undo-2" aria-hidden="true"></i></button>
@@ -380,7 +396,7 @@
 {#if dialogue && jeuGagnant}
 	<Dialog titre={jeuGagnant.nom} description="La roue a choisi" onfermer={() => (dialogue = false)}>
 		<div class="pile" style="gap:16px">
-			<div class="banniere" style="border-radius:12px"><img src={imageSteam(jeuGagnant.id)} alt="" onerror={masquer} /></div>
+			<div style="border-radius:12px;overflow:hidden">{@render jaquette(jeuGagnant, 'banniere')}</div>
 			<div class="infos">
 				<span class="nh-badge nh-badge--{tonMode(jeuGagnant)}">{mode(jeuGagnant)}</span>
 				{#if jeuGagnant.gratuit}<span class="nh-badge nh-badge--success">Gratuit</span>{/if}
@@ -448,7 +464,7 @@
 		margin: 6px 0 0;
 	}
 	.sous-titre {
-		color: var(--fg-3);
+		color: var(--fg-2);
 		font-size: 14px;
 		margin-top: 4px;
 	}
@@ -457,11 +473,11 @@
 		align-items: center;
 		gap: 8px;
 		font-size: 13px;
-		color: var(--fg-3);
+		color: var(--fg-2);
 	}
 	.discret {
 		font-size: 13px;
-		color: var(--fg-3);
+		color: var(--fg-2);
 	}
 	.qui {
 		display: flex;
@@ -506,7 +522,7 @@
 	.prenom {
 		font-weight: 500;
 		font-size: 13px;
-		color: var(--fg-3);
+		color: var(--fg-2);
 	}
 	.joueur.on .prenom {
 		color: var(--fg-1);
@@ -553,26 +569,41 @@
 	.banniere {
 		position: relative;
 		aspect-ratio: 460/215;
-		background: var(--petrol-800);
 		overflow: hidden;
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0 16px;
-		text-align: center;
-		font-weight: 700;
-		color: var(--fg-brand);
+		align-items: flex-end;
+		padding: 14px 16px;
+		background-size: cover;
+		background-position: center;
 	}
-	.banniere img {
+	.j-titre {
+		position: relative;
+		font-weight: 800;
+		font-size: 18px;
+		line-height: 1.15;
+		letter-spacing: -0.01em;
+		color: #fff;
+		text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+	}
+	.filigrane {
 		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
+		right: -8px;
+		top: 50%;
+		transform: translateY(-50%) rotate(-12deg);
+		font-size: 104px;
+		line-height: 1;
+		color: rgba(255, 255, 255, 0.2);
 	}
-	.presque .banniere img {
+	.vignette .filigrane {
+		right: 4px;
+		font-size: 34px;
+	}
+	.presque .banniere {
 		filter: saturate(0.6);
 		opacity: 0.75;
+	}
+	.b-cadre {
+		position: relative;
 	}
 	.coin {
 		position: absolute;
@@ -611,7 +642,7 @@
 	}
 	.genres {
 		font-size: 13px;
-		color: var(--fg-3);
+		color: var(--fg-2);
 	}
 	.infos {
 		display: flex;
@@ -687,16 +718,13 @@
 		opacity: 0.55;
 	}
 	.vignette {
+		position: relative;
 		width: 92px;
 		height: 43px;
 		border-radius: 8px;
 		overflow: hidden;
-		background: var(--petrol-800);
-	}
-	.vignette img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
+		background-size: cover;
+		background-position: center;
 	}
 	.r-nom {
 		font-weight: 500;
@@ -819,7 +847,7 @@
 		padding-top: 16px;
 		border-top: 1px solid var(--border-subtle);
 		font-size: 13px;
-		color: var(--fg-3);
+		color: var(--fg-2);
 	}
 	.dernier span {
 		color: var(--fg-1);
