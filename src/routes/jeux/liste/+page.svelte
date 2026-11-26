@@ -164,7 +164,7 @@
 	}
 </script>
 
-<svelte:head><title>Liste des jeux en cours · nohriancons</title></svelte:head>
+<svelte:head><title>Liste des jeux en cours · Nohriancons</title></svelte:head>
 <svelte:window bind:innerWidth={largeur} onclick={fermerMenus} />
 
 {#snippet couverture(j: { titre: string; serie: string; image: string }, taille: string, rayon = 'var(--radius-lg)')}

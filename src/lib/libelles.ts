@@ -33,3 +33,28 @@ export function octets(n: number) {
 	if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)} Mo`;
 	return `${Math.round(n / 1024)} Ko`;
 }
+
+/** État global des services (bannière de la page Status, pastille du menu). */
+export type EtatGlobal = 'ok' | 'degrade' | 'panne';
+
+/** Au-delà de ce temps de réponse (ms), un service en ligne est affiché « Lent ». */
+export const PING_LENT = 1000;
+
+/** Affichage d'un service d'Uptime Kuma : pastille pleine, couleur des battements, effet sur l'état global. */
+export const VUES_SERVICE = {
+	en_ligne: { l: 'En ligne', c: '#2fe39a', encre: '#04241a', icone: 'check', global: 'ok' },
+	lent: { l: 'Lent', c: '#ffb21e', encre: '#2a1a00', icone: 'snail', global: 'degrade' },
+	en_attente: { l: 'En attente', c: '#ffb21e', encre: '#2a1a00', icone: 'clock', global: 'degrade' },
+	maintenance: { l: 'Maintenance', c: '#3d9bff', encre: '#04121f', icone: 'wrench', global: 'degrade' },
+	hors_ligne: { l: 'Hors ligne', c: '#ff5468', encre: '#2a0509', icone: 'x', global: 'panne' },
+	inconnu: { l: 'Inconnu', c: 'var(--night-600)', encre: '#f5f0f2', icone: 'circle-help', global: 'ok' }
+} as const satisfies Record<string, { l: string; c: string; encre: string; icone: string; global: EtatGlobal }>;
+export type VueService = keyof typeof VUES_SERVICE;
+
+/** `etat` : état lu dans Uptime Kuma (en_ligne, en_panne, en_attente, maintenance, inconnu). */
+export function vueService(etat: string, ping: number | null = null): VueService {
+	if (etat === 'en_panne') return 'hors_ligne';
+	if (etat === 'en_ligne') return ping !== null && ping > PING_LENT ? 'lent' : 'en_ligne';
+	if (etat === 'en_attente' || etat === 'maintenance') return etat;
+	return 'inconnu';
+}

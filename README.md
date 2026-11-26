@@ -70,6 +70,7 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | Facultatif. Application Twitch pour chercher les jeux sur IGDB (titre, série, image). |
 | `PELICAN_URL` | Adresse de Sakura Panel. `PELICAN_API_KEYS_URL` et `PELICAN_SERVER_URL_TEMPLATE` sont facultatives. |
 | `KUMA_URL`, `KUMA_STATUS_SLUG` | Page de statut publique d'Uptime Kuma. |
+| `PLANNING_URL` | Lien « Planning » du menu (par défaut https://calendar.la-sikaverne.fr/, « aucun » le masque). |
 
 ### Authentik
 

@@ -1,19 +1,14 @@
 <script lang="ts">
 	// Page Status : état des services suivis par Uptime Kuma, rafraîchi toutes les 30 secondes.
 	import { invalidate } from '$app/navigation';
-	import { ilYa } from '#lib/libelles.ts';
+	import Lueur from '#lib/components/Lueur.svelte';
+	import Pilule from '#lib/components/Pilule.svelte';
+	import { ilYa, VUES_SERVICE, vueService, type EtatGlobal } from '#lib/libelles.ts';
 
 	let { data } = $props();
 
-	const ETATS = {
-		en_ligne: { l: 'En ligne', ton: 'success', c: 'var(--success-fg)' },
-		en_panne: { l: 'En panne', ton: 'danger', c: 'var(--danger-fg)' },
-		en_attente: { l: 'En attente', ton: 'warning', c: 'var(--warning-fg)' },
-		maintenance: { l: 'Maintenance', ton: 'info', c: 'var(--info-fg)' },
-		inconnu: { l: 'Inconnu', ton: 'neutral', c: 'var(--night-600)' }
-	} as const;
-
 	let maintenant = $state(Date.now());
+	let actualisation = $state(false);
 	$effect(() => {
 		const t = setInterval(() => {
 			maintenant = Date.now();
@@ -21,24 +16,70 @@
 		}, 30_000);
 		return () => clearInterval(t);
 	});
+	async function actualiser() {
+		actualisation = true;
+		await invalidate('hub:status');
+		maintenant = Date.now();
+		actualisation = false;
+	}
 
-	const services = $derived(data.statut?.groupes.flatMap((g) => g.services) ?? []);
-	const enPanne = $derived(services.filter((s) => s.etat === 'en_panne').length);
-	const enAlerte = $derived(services.filter((s) => s.etat === 'en_attente' || s.etat === 'maintenance').length);
-	const bandeau = $derived(
-		!services.length
-			? null
-			: enPanne
-				? { ton: 'danger', icone: 'circle-x', texte: `${enPanne} service${enPanne > 1 ? 's' : ''} en panne` }
-				: enAlerte
-					? { ton: 'warning', icone: 'triangle-alert', texte: 'Tout tourne, avec quelques alertes' }
-					: { ton: 'success', icone: 'circle-check', texte: 'Tout fonctionne' }
+	/** Icône d'un service, devinée d'après son nom. */
+	function iconeDe(nom: string) {
+		const n = nom.toLowerCase();
+		if (/authentik|auth|sso/.test(n)) return 'key-round';
+		if (/panel|pelican|ptero/.test(n)) return 'layout-dashboard';
+		if (/hub|nohrian|site/.test(n)) return 'house';
+		if (/kuma|uptime|status/.test(n)) return 'activity';
+		if (/calend|planning|agenda/.test(n)) return 'calendar-days';
+		if (/craft|minecraft/.test(n)) return 'pickaxe';
+		return 'server';
+	}
+
+	const services = $derived(
+		(data.statut?.groupes.flatMap((g) => g.services) ?? []).map((s) => ({ ...s, vue: vueService(s.etat, s.ping) }))
 	);
+	const compter = (e: EtatGlobal) => services.filter((s) => VUES_SERVICE[s.vue].global === e).length;
+	const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+
+	const BANDEAUX = {
+		ok: { icone: 'circle-check', c: '#2fe39a', encre: '#04241a', ombre: 'rgba(47,227,154,.2)', a: 'rgba(47,227,154,.26)', b: 'rgba(47,227,154,.08)' },
+		degrade: { icone: 'triangle-alert', c: '#ffb21e', encre: '#2a1a00', ombre: 'rgba(255,178,30,.22)', a: 'rgba(255,178,30,.32)', b: 'rgba(255,178,30,.10)' },
+		panne: { icone: 'circle-x', c: '#ff5468', encre: '#2a0509', ombre: 'rgba(255,84,104,.25)', a: 'rgba(255,84,104,.38)', b: 'rgba(255,84,104,.12)' }
+	} as const;
+
+	const bandeau = $derived.by(() => {
+		if (!services.length) return null;
+		const enPanne = compter('panne');
+		const alertes = compter('degrade');
+		if (enPanne) return { ...BANDEAUX.panne, texte: 'Panne en cours', sous: `${pluriel(enPanne, 'service')} hors ligne` };
+		if (alertes) {
+			const lents = services.filter((s) => s.vue === 'lent').length;
+			return {
+				...BANDEAUX.degrade,
+				texte: alertes > 1 ? 'Des services sont ralentis' : 'Un service est ralenti',
+				sous:
+					lents === alertes
+						? `${pluriel(lents, 'service')} répond${lents > 1 ? 'ent' : ''} lentement`
+						: `${pluriel(alertes, 'service')} en attente, en maintenance ou lent${alertes > 1 ? 's' : ''}`
+			};
+		}
+		return {
+			...BANDEAUX.ok,
+			texte: 'Tout fonctionne',
+			sous: services.length > 1 ? `Les ${services.length} services répondent normalement` : 'Le service répond normalement'
+		};
+	});
+	const lueur = $derived.by(() => {
+		const b = bandeau ?? { a: 'rgba(53,106,140,.55)', b: 'rgba(53,106,140,.18)' };
+		return `radial-gradient(60% 80% at 12% 0%, ${b.a} 0%, ${b.b} 45%, rgba(11,21,28,0) 80%), radial-gradient(45% 60% at 88% 16%, rgba(53,106,140,.45) 0%, rgba(53,106,140,.12) 45%, rgba(11,21,28,0) 75%)`;
+	});
 	const pourcent = (v: number | null) =>
 		v === null ? '–' : `${(Math.floor(v * 10000) / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %`;
 </script>
 
-<svelte:head><title>Status · nohriancons</title></svelte:head>
+<svelte:head><title>Status · Nohriancons</title></svelte:head>
+
+<Lueur fond={lueur} />
 
 <main class="nh-page" style="gap:var(--space-8)">
 	<header class="entete">
@@ -48,7 +89,8 @@
 		</div>
 		{#if data.statut}
 			<div class="maj">
-				Mis à jour {ilYa(data.statut.lueLe, maintenant)}
+				<span aria-live="polite">Mis à jour {ilYa(data.statut.lueLe, maintenant)}</span>
+				<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Actualiser" title="Actualiser" disabled={actualisation} onclick={actualiser}><i class="icon-refresh-cw" class:tourne={actualisation} aria-hidden="true"></i></button>
 				<a class="nh-btn nh-btn--ghost nh-btn--sm" href={data.statut.urlPage} target="_blank" rel="noopener noreferrer"><i class="icon-external-link" aria-hidden="true"></i>Ouvrir Uptime Kuma</a>
 			</div>
 		{/if}
@@ -60,7 +102,10 @@
 		<div class="nh-card vide"><i class="icon-cloud-off" aria-hidden="true"></i><div>Uptime Kuma ne répond pas pour l’instant. Nouvel essai dans 30 secondes.</div></div>
 	{:else if data.statut}
 		{#if bandeau}
-			<div class="bandeau bandeau--{bandeau.ton}" role="status"><i class="icon-{bandeau.icone}" aria-hidden="true"></i>{bandeau.texte}</div>
+			<div class="bandeau" role="status" style:background={bandeau.c} style:color={bandeau.encre} style:box-shadow="0 8px 32px {bandeau.ombre}">
+				<span class="b-icone"><i class="icon-{bandeau.icone}" aria-hidden="true"></i></span>
+				<div class="b-textes"><span class="b-titre">{bandeau.texte}</span><span class="b-sous">{bandeau.sous}</span></div>
+			</div>
 		{/if}
 		{#if data.statut.incident}
 			<div class="nh-card incident"><div class="i-titre"><i class="icon-megaphone" aria-hidden="true"></i>{data.statut.incident.titre}</div>{#if data.statut.incident.contenu}<div class="i-texte">{data.statut.incident.contenu}</div>{/if}</div>
@@ -69,23 +114,30 @@
 			<div class="nh-card incident"><div class="i-titre"><i class="icon-wrench" aria-hidden="true"></i>{m.titre}</div>{#if m.description}<div class="i-texte">{m.description}</div>{/if}</div>
 		{/each}
 		{#if !services.length}<div class="nh-card vide">Aucun service n’est affiché sur cette page de statut.</div>{/if}
-		{#each data.statut.groupes as g (g.nom)}
-			<section class="groupe">
-				<h2>{g.nom}</h2>
+		{#each data.statut.groupes as g, gi (g.nom)}
+			<section class="groupe" aria-labelledby="grp-{gi}">
+				<h2 id="grp-{gi}">{g.nom}</h2>
 				<div class="nh-card liste">
 					{#each g.services as s (s.id)}
-						{@const e = ETATS[s.etat]}
+						{@const v = VUES_SERVICE[vueService(s.etat, s.ping)]}
+						{@const enLigne = s.historique.filter((h) => h === 'en_ligne').length}
 						<div class="service">
-							<div class="s-nom"><span class="nh-dot" style:background={e.c}></span><span>{s.nom}</span></div>
-							<div class="battements" aria-label="Derniers contrôles">
-								{#each s.historique as h, k (k)}<span style:background={ETATS[h].c} title={ETATS[h].l}></span>{/each}
+							<div class="s-nom">
+								<span class="tuile" aria-hidden="true"><i class="icon-{iconeDe(s.nom)}"></i></span>
+								<span class="texte">{s.nom}</span>
+							</div>
+							<div class="battements" role="img" aria-label="Derniers contrôles : {enLigne} sur {s.historique.length} en ligne">
+								{#each s.historique as h, k (k)}
+									{@const vh = VUES_SERVICE[vueService(h)]}
+									<span style:background={vh.c} title={vh.l}></span>
+								{/each}
 							</div>
 							<div class="chiffres">
 								<span title="Disponibilité sur 24 heures"><b>{pourcent(s.dispo24h)}</b> 24 h</span>
 								<span title="Disponibilité sur 30 jours"><b>{pourcent(s.dispo30j)}</b> 30 j</span>
-								{#if s.ping !== null}<span><b>{s.ping}</b> ms</span>{/if}
+								<span title="Temps de réponse"><b>{s.ping ?? '–'}</b> ms</span>
 							</div>
-							<span class="nh-badge nh-badge--{e.ton}"><span class="nh-badge__dot"></span>{e.l}</span>
+							<span class="etat"><Pilule couleur={v.c} encre={v.encre} icone={v.icone} libelle={v.l} /></span>
 						</div>
 					{/each}
 				</div>
@@ -108,21 +160,34 @@
 		color: var(--fg-1);
 	}
 	h2 {
-		font: var(--type-h3);
+		font: var(--type-h4);
+		font-weight: var(--weight-bold);
 		letter-spacing: var(--tracking-tight);
 		color: var(--fg-1);
 	}
 	.sous {
-		color: var(--fg-3);
-		font-size: 14px;
-		margin-top: 4px;
+		font: var(--type-body);
+		color: var(--fg-2);
+		margin-top: var(--space-2);
 	}
 	.maj {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-3);
+		gap: var(--space-2);
 		font-size: 13px;
-		color: var(--fg-3);
+		color: var(--fg-2);
+	}
+	.maj a:hover {
+		text-decoration: none;
+	}
+	.tourne {
+		animation: tourne 0.8s linear infinite;
+	}
+	@keyframes tourne {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 	.vide {
 		padding: 32px;
@@ -139,26 +204,36 @@
 	.bandeau {
 		display: flex;
 		align-items: center;
-		gap: var(--space-3);
+		gap: var(--space-4);
 		padding: var(--space-4) var(--space-5);
 		border-radius: var(--radius-lg);
-		font: var(--type-label);
-		font-size: var(--text-md);
+		transition: background 0.4s var(--ease-out);
 	}
-	.bandeau i {
-		font-size: 20px;
+	.b-icone {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.14);
+		font-size: 22px;
 	}
-	.bandeau--success {
-		background: var(--success-bg);
-		color: var(--success-fg);
+	.b-textes {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
 	}
-	.bandeau--warning {
-		background: var(--warning-bg);
-		color: var(--warning-fg);
+	.b-titre {
+		font-weight: var(--weight-bold);
+		font-size: var(--text-lg);
+		line-height: 1.2;
 	}
-	.bandeau--danger {
-		background: var(--danger-bg);
-		color: var(--danger-fg);
+	.b-sous {
+		font-size: 14px;
+		font-weight: 500;
+		opacity: 0.85;
 	}
 	.incident {
 		padding: var(--space-5);
@@ -181,62 +256,91 @@
 	.groupe {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: var(--space-3);
 	}
 	.liste {
-		padding: 0 var(--space-5);
+		display: flex;
+		flex-direction: column;
 	}
 	.service {
-		display: grid;
-		grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr) auto auto;
-		gap: var(--space-5);
+		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		padding: var(--space-4) 0;
+		gap: var(--space-3) var(--space-5);
+		padding: var(--space-4) var(--space-5);
 	}
 	.service + .service {
 		border-top: 1px solid var(--border-subtle);
 	}
 	.s-nom {
+		flex: 0 0 220px;
+		min-width: 0;
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
 		font: var(--type-label);
+		font-size: var(--text-md);
 		color: var(--fg-1);
-		min-width: 0;
+	}
+	.tuile {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
+		background: var(--petrol-500);
+		color: var(--apricot-300);
+		font-size: 18px;
+	}
+	.texte {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.battements {
+		flex: 1 1 260px;
+		min-width: 0;
 		display: flex;
-		justify-content: flex-end;
 		gap: 3px;
-		height: 24px;
-		overflow: hidden;
+		height: 28px;
 	}
 	.battements span {
-		flex: 0 0 6px;
+		flex: 1 1 0;
+		min-width: 2px;
 		border-radius: 3px;
 	}
 	.chiffres {
+		flex: none;
 		display: flex;
 		gap: var(--space-4);
+		font: var(--type-body-sm);
 		font-size: 13px;
 		color: var(--fg-3);
 		white-space: nowrap;
 	}
 	.chiffres b {
 		color: var(--fg-1);
-		font-weight: 600;
+		font-weight: var(--weight-demi);
 	}
-	@media (max-width: 719px) {
-		.service {
-			grid-template-columns: minmax(0, 1fr) auto;
-			gap: var(--space-2) var(--space-3);
+	.etat {
+		flex: none;
+		width: 112px;
+		display: flex;
+		justify-content: flex-end;
+	}
+	@media (max-width: 559px) {
+		.s-nom {
+			flex: 1 1 0;
+		}
+		.etat {
+			width: auto;
 		}
 		.battements {
-			grid-column: 1 / -1;
 			order: 3;
+			flex-basis: 100%;
 		}
 		.chiffres {
-			grid-column: 1 / -1;
 			order: 4;
 		}
 	}

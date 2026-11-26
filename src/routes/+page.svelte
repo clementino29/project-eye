@@ -1,20 +1,27 @@
 <script lang="ts">
+	import Lueur from '#lib/components/Lueur.svelte';
+
 	let { data } = $props();
 	const RACCOURCIS = [
 		{ href: '/jeux/liste', icone: 'list', titre: 'Liste des jeux en cours', desc: 'Les jeux qu’on a sur le feu, qui y joue et où on en est.', cta: 'Voir la liste' },
 		{ href: '/jeux/parties', icone: 'dices', titre: 'Parties', desc: 'Cale la prochaine session et retrouve les anciennes.', cta: 'Voir les parties' },
 		{ href: '/jeux/quoi-faire', icone: 'lightbulb', titre: 'Quoi faire ?', desc: 'Pas d’idée ce soir ? Le site te propose un truc.', cta: 'Trouver une idée' }
 	];
-	const salut = $derived(data.moi ? `Salut ${data.moi.nom.split(' ')[0]}.` : 'Bienvenue sur le hub des nohriancons !');
+	const salut = $derived(data.moi ? `Salut ${data.moi.nom.split(' ')[0]}.` : 'Bienvenue sur le hub des Nohriancons !');
 </script>
 
-<svelte:head><title>nohriancons</title></svelte:head>
+<svelte:head><title>Nohriancons</title></svelte:head>
+
+<Lueur
+	hauteur="min(960px, 115vh)"
+	fond="radial-gradient(65% 85% at 12% 0%, rgba(53,106,140,.75) 0%, rgba(35,76,103,.38) 45%, rgba(11,21,28,0) 82%), radial-gradient(45% 60% at 88% 16%, rgba(244,178,122,.30) 0%, rgba(244,178,122,.10) 45%, rgba(11,21,28,0) 75%), radial-gradient(80% 50% at 55% 0%, rgba(147,188,214,.14) 0%, rgba(11,21,28,0) 72%)"
+/>
 
 <main class="nh-page" style="gap:clamp(48px,5vw,96px)">
 	<section class="intro">
 		<span class="nh-overline">Le QG de la bande</span>
 		<h1>{salut}</h1>
-		<p>nohriancons, c'est notre coin à nous : on y suit les jeux en cours, on cale les prochaines parties et on trouve quoi faire quand personne n'a d'idée.</p>
+		<p>Nohriancons, c'est notre coin à nous : on y suit les jeux en cours, on cale les prochaines parties et on trouve quoi faire quand personne n'a d'idée.</p>
 		<div class="actions">
 			{#if data.moi}
 				<a href="/jeux/parties" class="nh-btn nh-btn--primary"><i class="icon-dices" aria-hidden="true"></i>Voir les parties</a>

@@ -173,7 +173,7 @@
 	const masquer = (e: Event) => ((e.currentTarget as HTMLImageElement).style.display = 'none');
 </script>
 
-<svelte:head><title>Quoi faire ? · nohriancons</title></svelte:head>
+<svelte:head><title>Quoi faire ? · Nohriancons</title></svelte:head>
 
 {#snippet carte(j: JeuCommun, manquant: number | null)}
 	<div class="nh-card jeu" class:presque={manquant !== null}>

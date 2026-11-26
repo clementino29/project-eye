@@ -134,7 +134,7 @@
 	}
 </script>
 
-<svelte:head><title>Parties · nohriancons</title></svelte:head>
+<svelte:head><title>Parties · Nohriancons</title></svelte:head>
 <svelte:window bind:innerWidth={largeur} onclick={() => (menu = null)} onkeydown={(e) => e.key === 'Escape' && (menu = null)} />
 
 {#snippet avancement(p: Partie, grand: boolean)}

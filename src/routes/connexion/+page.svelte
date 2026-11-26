@@ -3,7 +3,7 @@
 	const erreur = $derived(form?.erreur ?? data.erreur);
 </script>
 
-<svelte:head><title>Connexion · nohriancons</title></svelte:head>
+<svelte:head><title>Connexion · Nohriancons</title></svelte:head>
 
 <main class="connexion">
 	<div class="lueur" aria-hidden="true"></div>

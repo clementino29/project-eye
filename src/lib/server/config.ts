@@ -114,6 +114,12 @@ export const config = {
 			return base ? `${base}/server/{id}` : undefined;
 		}
 	},
+	/** Lien « Planning » du menu (agenda partagé). Mettre PLANNING_URL=aucun pour le masquer. */
+	get planningUrl() {
+		const v = lire('PLANNING_URL');
+		if (v === 'aucun') return null;
+		return v ?? 'https://calendar.la-sikaverne.fr/';
+	},
 	kuma: {
 		get url() {
 			return sansSlashFinal(lire('KUMA_URL'));

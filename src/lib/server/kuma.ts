@@ -1,5 +1,6 @@
 // Page Status : lecture de la page de statut publique d'Uptime Kuma (API JSON).
 import { config } from './config.ts';
+import { VUES_SERVICE, vueService, type EtatGlobal } from '../libelles.ts';
 
 type Fetch = typeof fetch;
 
@@ -86,4 +87,39 @@ export async function lireStatut(fetcher: Fetch = fetch): Promise<StatutKuma | n
 	const valeur = assembler(await p.json(), await b.json(), `${url}/status/${s}`);
 	cache = { valeur, expire: Date.now() + 30_000 };
 	return valeur;
+}
+
+/** Résumé de tous les services : une panne l'emporte sur un ralentissement. */
+export function etatGlobal(statut: StatutKuma | null): EtatGlobal | null {
+	const services = statut?.groupes.flatMap((g) => g.services) ?? [];
+	if (!services.length) return null;
+	const etats = services.map((s) => VUES_SERVICE[vueService(s.etat, s.ping)].global);
+	if (etats.includes('panne')) return 'panne';
+	if (etats.includes('degrade')) return 'degrade';
+	return 'ok';
+}
+
+/** Après un échec, le menu n'attend plus Uptime Kuma pendant 30 s. */
+let echecJusqua = 0;
+
+/** Pour le menu : l'état global sans jamais faire échouer ni ralentir longtemps la page (1,5 s au plus). */
+export async function etatGlobalRapide(fetcher: Fetch = fetch): Promise<EtatGlobal | null> {
+	if (Date.now() < echecJusqua && !(cache && cache.expire > Date.now())) return null;
+	let minuteur: ReturnType<typeof setTimeout> | undefined;
+	try {
+		const statut = await Promise.race([
+			lireStatut(fetcher),
+			new Promise<'trop_long'>((r) => (minuteur = setTimeout(() => r('trop_long'), 1500)))
+		]);
+		if (statut === 'trop_long') {
+			echecJusqua = Date.now() + 30_000;
+			return null;
+		}
+		return etatGlobal(statut);
+	} catch {
+		echecJusqua = Date.now() + 30_000;
+		return null;
+	} finally {
+		clearTimeout(minuteur);
+	}
 }

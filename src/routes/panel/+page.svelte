@@ -3,20 +3,46 @@
 	import { invalidate } from '$app/navigation';
 	import type { SubmitFunction } from '$app/forms';
 	import Dialog from '#lib/components/Dialog.svelte';
+	import Lueur from '#lib/components/Lueur.svelte';
+	import Pilule from '#lib/components/Pilule.svelte';
 	import { toasts } from '#lib/toasts.svelte.ts';
 	import { ilYa, octets } from '#lib/libelles.ts';
 
 	let { data } = $props();
 
 	const ETATS = {
-		running: { l: 'En ligne', ton: 'success' },
-		offline: { l: 'Arrêté', ton: 'neutral' },
-		starting: { l: 'En démarrage', ton: 'warning' },
-		stopping: { l: 'En arrêt', ton: 'warning' },
-		installation: { l: 'En installation', ton: 'info' },
-		suspendu: { l: 'Suspendu', ton: 'danger' },
-		inconnu: { l: 'Inconnu', ton: 'neutral' }
+		running: { l: 'En ligne', c: '#2fe39a', encre: '#04241a', icone: 'play' },
+		offline: { l: 'Arrêté', c: 'var(--night-600)', encre: '#f5f0f2', icone: 'square' },
+		starting: { l: 'Démarrage', c: '#3d9bff', encre: '#04121f', icone: 'loader-circle' },
+		stopping: { l: 'Arrêt en cours', c: '#ffb21e', encre: '#2a1a00', icone: 'pause' },
+		installation: { l: 'Installation', c: '#3d9bff', encre: '#04121f', icone: 'loader-circle' },
+		suspendu: { l: 'Suspendu', c: '#ff5468', encre: '#2a0509', icone: 'ban' },
+		inconnu: { l: 'Inconnu', c: 'var(--night-600)', encre: '#f5f0f2', icone: 'circle-help' }
 	} as const;
+
+	// Jaquettes dessinées : teinte et icône d'après le nom du serveur.
+	const ARTS: [RegExp, number, string][] = [
+		[/factory|factorio/, 28, 'factory'],
+		[/cobble|pok[eé]/, 350, 'circle-dot'],
+		[/craft|minecraft/, 120, 'pickaxe'],
+		[/^pal|palworld/, 195, 'paw-print'],
+		[/unturned|zomb/, 75, 'biohazard'],
+		[/terraria/, 140, 'tree-pine'],
+		[/valheim|viking/, 210, 'sword']
+	];
+	const ICONES_ART = ['server', 'gamepad-2', 'swords', 'rocket', 'castle', 'map'];
+	function artDe(nom: string) {
+		const n = nom.toLowerCase();
+		let h = 0;
+		for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) % 9973;
+		const connu = ARTS.find(([r]) => r.test(n));
+		const teinte = connu ? connu[1] : h % 360;
+		return {
+			icone: connu ? connu[2] : ICONES_ART[h % ICONES_ART.length],
+			degrade: `linear-gradient(135deg, hsl(${teinte},70%,40%) 0%, hsl(${(teinte + 35) % 360},65%,20%) 100%)`,
+			couleur: `hsl(${teinte},60%,30%)`
+		};
+	}
 	const ACTIONS = { demarrer: 'a démarré', arreter: 'a arrêté', redemarrer: 'a redémarré', commande: 'a lancé une commande sur', sauvegarde: 'a sauvegardé' };
 	const SIGNAUX = { start: 'démarre', stop: 's’arrête', restart: 'redémarre' };
 
@@ -60,9 +86,22 @@
 	}
 	const heure = (t: number) => new Date(t).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 	const enLigne = $derived(data.serveurs.filter((s) => s.etat === 'running').length);
+	// Fond de page : la jaquette floutée du serveur en ligne (sinon du premier serveur actif).
+	const vedette = $derived(
+		data.serveurs.find((s) => s.etat === 'running') ??
+			data.serveurs.find((s) => s.etat === 'starting') ??
+			data.serveurs.find((s) => s.etat !== 'suspendu') ??
+			data.serveurs[0]
+	);
 </script>
 
-<svelte:head><title>Panel · nohriancons</title></svelte:head>
+<svelte:head><title>Panel · Nohriancons</title></svelte:head>
+
+{#if vedette}
+	<Lueur image={artDe(vedette.nom)} hauteur="min(760px, 95vh)" />
+{:else}
+	<Lueur fond="radial-gradient(60% 80% at 12% 0%, rgba(53,106,140,.55) 0%, rgba(53,106,140,.16) 45%, rgba(11,21,28,0) 80%)" />
+{/if}
 
 <main class="nh-page" style="gap:var(--space-8)">
 	<header class="entete">
@@ -106,18 +145,23 @@
 		<div class="grille">
 			{#each data.serveurs as s (s.identifiant)}
 				{@const e = ETATS[s.etat]}
+				{@const art = artDe(s.nom)}
 				{@const occupe = enCours === s.identifiant}
-				<article class="nh-card serveur" aria-labelledby="srv-{s.identifiant}">
+				<article class="serveur" aria-labelledby="srv-{s.identifiant}">
+					<div class="art" class:eteint={s.etat === 'suspendu'} aria-hidden="true" style:background={art.degrade}>
+						<i class="icon-{art.icone} filigrane"></i>
+						<span class="vignette"><i class="icon-{art.icone}"></i></span>
+					</div>
 					<div class="haut">
 						<div class="titre">
 							<h2 id="srv-{s.identifiant}">{s.nom}</h2>
-							<span class="jeu">{s.jeu ?? s.description ?? ''}</span>
+							{#if s.jeu ?? s.description}<span class="jeu">{s.jeu ?? s.description}</span>{/if}
 						</div>
-						<span class="nh-badge nh-badge--{e.ton}"><span class="nh-badge__dot"></span>{e.l}</span>
+						<Pilule couleur={e.c} encre={e.encre} icone={e.icone} libelle={e.l} />
 					</div>
 
 					<dl class="infos">
-						<div>
+						<div class="large">
 							<dt>Adresse</dt>
 							<dd>
 								{#if s.adresse}
@@ -138,7 +182,7 @@
 							<dt>Processeur</dt>
 							<dd>{s.ressources && s.etat === 'running' ? `${Math.round(s.ressources.cpuPourcent)} %` : '—'}</dd>
 						</div>
-						<div>
+						<div class="large">
 							<dt>Mémoire</dt>
 							<dd>
 								{#if s.ressources && s.etat === 'running'}
@@ -237,11 +281,12 @@
 	h1 {
 		font: var(--type-h1);
 		letter-spacing: var(--tracking-tight);
+		color: var(--fg-1);
 	}
 	.sous {
-		margin-top: 8px;
-		font: var(--type-body-sm);
-		color: var(--fg-3);
+		margin-top: var(--space-2);
+		font: var(--type-body);
+		color: var(--fg-2);
 	}
 	.vide {
 		padding: 24px;
@@ -273,14 +318,53 @@
 	}
 	.grille {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
 		gap: var(--space-5);
+		align-items: stretch;
 	}
 	.serveur {
-		padding: var(--space-5);
+		min-width: 0;
+		overflow: hidden;
+		padding: var(--space-6);
+		border-radius: var(--radius-lg);
+		background: var(--surface-1);
+		border: 1px solid var(--border-subtle);
+		box-shadow: var(--shadow-1);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: var(--space-5);
+	}
+	.art {
+		position: relative;
+		height: 92px;
+		margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) 0;
+		overflow: hidden;
+	}
+	.art.eteint {
+		filter: grayscale(0.75) brightness(0.8);
+	}
+	.filigrane {
+		position: absolute;
+		right: 12px;
+		top: 50%;
+		transform: translateY(-50%) rotate(-12deg);
+		font-size: 96px;
+		line-height: 1;
+		color: rgba(255, 255, 255, 0.22);
+	}
+	.vignette {
+		position: absolute;
+		left: var(--space-6);
+		bottom: 12px;
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		border-radius: 12px;
+		background: rgba(11, 21, 28, 0.35);
+		color: #fff;
+		backdrop-filter: blur(4px);
+		font-size: 22px;
 	}
 	.haut {
 		display: flex;
@@ -295,9 +379,12 @@
 		min-width: 0;
 	}
 	.titre h2 {
-		font-weight: 700;
-		font-size: 18px;
-		letter-spacing: -0.01em;
+		font-weight: var(--weight-bold);
+		font-size: var(--text-lg);
+		line-height: var(--leading-tight);
+		letter-spacing: var(--tracking-tight);
+		color: var(--fg-1);
+		overflow-wrap: anywhere;
 	}
 	.jeu {
 		font-size: 13px;
@@ -305,9 +392,12 @@
 	}
 	.infos {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 12px 16px;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--space-4) var(--space-5);
 		margin: 0;
+	}
+	.infos .large {
+		grid-column: 1 / -1;
 	}
 	.infos div {
 		display: flex;
@@ -326,25 +416,31 @@
 		margin: 0;
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		font-size: 14px;
+		gap: var(--space-2);
+		min-width: 0;
+		font: var(--type-label);
+		font-size: var(--text-md);
 		color: var(--fg-1);
 		min-height: 32px;
 	}
 	code {
-		font-family: var(--font-mono);
-		font-size: 13px;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 14px;
+		color: var(--fg-1);
+		padding: 4px 8px;
+		border-radius: var(--radius-sm);
+		background: var(--bg-sunken);
+		border: 1px solid var(--border-subtle);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.boutons {
+		margin-top: auto;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 8px;
-		padding-top: var(--space-4);
-		border-top: 1px solid var(--border-subtle);
+		gap: var(--space-2);
 	}
 	.boutons form {
 		display: flex;
