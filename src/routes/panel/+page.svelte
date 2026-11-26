@@ -5,6 +5,9 @@
 	import Dialog from '#lib/components/Dialog.svelte';
 	import Lueur from '#lib/components/Lueur.svelte';
 	import StatusPill from '#lib/components/StatusPill.svelte';
+	import ChargeMachine from '#lib/components/panel/ChargeMachine.svelte';
+	import ConsoleServeur from '#lib/components/panel/ConsoleServeur.svelte';
+	import SauvegardesServeur from '#lib/components/panel/SauvegardesServeur.svelte';
 	import { artServeur } from '#lib/design/art.ts';
 	import { PASTILLES_SERVEUR } from '#lib/design/pastilles.ts';
 	import { toasts } from '#lib/toasts.svelte.ts';
@@ -13,12 +16,20 @@
 	let { data } = $props();
 
 	const ETATS = PASTILLES_SERVEUR;
-	const ACTIONS = { demarrer: 'a démarré', arreter: 'a arrêté', redemarrer: 'a redémarré', commande: 'a lancé une commande sur', sauvegarde: 'a sauvegardé' };
+	const ACTIONS = { demarrer: 'a démarré', arreter: 'a arrêté', redemarrer: 'a redémarré', commande: 'a lancé une commande sur', sauvegarde: 'a sauvegardé', arret_auto: 'a arrêté' };
+	const DELAIS = [15, 30, 60, 120];
+	const duree = (min: number) => (min >= 60 ? `${min / 60} h` : `${min} min`);
 	const SIGNAUX = { start: 'démarre', stop: 's’arrête', restart: 'redémarre' };
 
 	let enCours = $state<string | null>(null);
 	type Serveur = (typeof data.serveurs)[number];
 	let reglage = $state<Serveur | null>(null);
+	let console_ = $state<Serveur | null>(null);
+	let sauvegardes = $state<Serveur | null>(null);
+	// La console et les sauvegardes suivent l'état du serveur rafraîchi par la page.
+	const enConsole = $derived(console_ && (data.serveurs.find((s) => s.identifiant === console_!.identifiant) ?? console_));
+	const enSauvegardes = $derived(sauvegardes && (data.serveurs.find((s) => s.identifiant === sauvegardes!.identifiant) ?? sauvegardes));
+	const minutesDepuis = (t: number) => Math.max(0, Math.floor((Date.now() - t) / 60_000));
 
 	// Rafraîchit l'état toutes les 10 s quand la page est visible.
 	$effect(() => {
@@ -86,6 +97,8 @@
 			</p>
 		</div>
 	</header>
+
+	{#if data.machine}<ChargeMachine charge={data.machine} />{/if}
 
 	{#if data.etat === 'sans_cle' || data.etat === 'cle_illisible' || data.etat === 'cle_refusee'}
 		<div class="nh-card vide">
@@ -162,8 +175,15 @@
 						</div>
 					</dl>
 
-					<div class="boutons">
-						<form method="POST" action="?/alimentation" use:enhance={action(s.identifiant)}>
+					{#if s.arretAutoMinutes}
+						<p class="note auto">
+							<i class="icon-timer" aria-hidden="true"></i>
+							<span>Arrêt automatique après {duree(s.arretAutoMinutes)} sans joueur{#if s.videDepuis}<strong>{' · '}personne depuis {minutesDepuis(s.videDepuis)} min</strong>{/if}</span>
+						</p>
+					{/if}
+
+					<div class="pied-carte">
+						<form method="POST" action="?/alimentation" class="alim" use:enhance={action(s.identifiant)}>
 							<input type="hidden" name="serveur" value={s.identifiant} />
 							<input type="hidden" name="nom" value={s.nom} />
 							{#if s.permissions.demarrer && (s.etat === 'offline' || s.etat === 'inconnu')}
@@ -176,13 +196,24 @@
 								<button name="signal" value="stop" class="nh-btn nh-btn--danger nh-btn--sm" disabled={occupe}><i class="icon-square" aria-hidden="true"></i>Arrêter</button>
 							{/if}
 						</form>
-						<span class="espace"></span>
-						{#if data.moi?.role === 'admin'}
-							<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Réglages du serveur" title="Réglages du serveur" onclick={() => (reglage = s)}><i class="icon-settings-2" aria-hidden="true"></i></button>
-						{/if}
-						{#if s.urlPelican}
-							<a href={s.urlPelican} target="_blank" rel="noopener" class="nh-btn nh-btn--outline nh-btn--sm">Ouvrir dans Pelican<i class="icon-external-link" aria-hidden="true"></i></a>
-						{/if}
+						<div class="outils">
+							<div class="groupe">
+								{#if s.permissions.console || s.permissions.commande}
+									<button type="button" class="nh-btn nh-btn--outline nh-btn--sm" onclick={() => (console_ = s)}><i class="icon-square-terminal" aria-hidden="true"></i>Console</button>
+								{/if}
+								{#if s.permissions.sauvegardes.voir || s.permissions.sauvegardes.creer}
+									<button type="button" class="nh-btn nh-btn--outline nh-btn--sm" onclick={() => (sauvegardes = s)}><i class="icon-archive" aria-hidden="true"></i>Sauvegardes</button>
+								{/if}
+							</div>
+							<div class="groupe droite">
+								{#if data.moi?.role === 'admin'}
+									<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Réglages du serveur" title="Réglages du serveur" onclick={() => (reglage = s)}><i class="icon-settings-2" aria-hidden="true"></i></button>
+								{/if}
+								{#if s.urlPelican}
+									<a href={s.urlPelican} target="_blank" rel="noopener" class="nh-btn nh-btn--ghost nh-btn--sm" aria-label="Ouvrir {s.nom} dans Pelican" title="Ouvrir dans Pelican">Pelican<i class="icon-external-link" aria-hidden="true"></i></a>
+								{/if}
+							</div>
+						</div>
 					</div>
 					{#if !s.permissions.demarrer && !s.permissions.arreter && !s.permissions.redemarrer}
 						<span class="note">Tu peux voir ce serveur, mais pas le piloter. Demande à un admin si besoin.</span>
@@ -190,7 +221,7 @@
 				</article>
 			{/each}
 		</div>
-		<p class="note">Console, fichiers, sauvegardes et tâches planifiées : bouton « Ouvrir dans Pelican ».</p>
+		<p class="note">Fichiers du serveur, utilisateurs et tâches planifiées : bouton « Pelican » de chaque serveur.</p>
 	{/if}
 
 	<section aria-labelledby="journal" class="journal">
@@ -202,7 +233,9 @@
 				{#each data.journal as a (a.id)}
 					<li>
 						<i class="icon-{a.resultat === 'ok' ? 'circle-check' : 'circle-alert'} {a.resultat}" aria-hidden="true"></i>
-						<span><strong>{a.qui ?? 'Un ancien membre'}</strong> {ACTIONS[a.action]} <strong>{a.serveur}</strong>{#if a.resultat === 'erreur'}<span class="erreur"> · échec{a.message ? ` : ${a.message}` : ''}</span>{/if}</span>
+						<span>
+							{#if a.action === 'arret_auto'}<strong>Arrêt automatique</strong> de <strong>{a.serveur}</strong>{:else}<strong>{a.qui ?? 'Un ancien membre'}</strong> {ACTIONS[a.action]} <strong>{a.serveur}</strong>{/if}{#if a.resultat === 'erreur'}<span class="erreur"> · échec{a.message ? ` : ${a.message}` : ''}</span>{:else if a.message && a.action === 'commande'}{'\u00a0: '}<code class="cmd">{a.message}</code>{:else if a.message && a.action === 'arret_auto'}<span class="detail">{' · '}{a.message.toLowerCase()}</span>{/if}
+						</span>
 						<time datetime={new Date(a.date).toISOString()} title={heure(a.date)}>{ilYa(a.date)}</time>
 					</li>
 				{/each}
@@ -212,7 +245,7 @@
 </main>
 
 {#if reglage}
-	<Dialog titre="Réglages de {reglage.nom}" description="Affichage dans le hub seulement : les droits restent ceux de Sakura Panel." onfermer={() => (reglage = null)}>
+	<Dialog titre="Réglages de {reglage.nom}" description="Les droits restent ceux de Sakura Panel." onfermer={() => (reglage = null)}>
 		<form method="POST" action="?/reglages" class="form" use:enhance={action(reglage.identifiant)}>
 			<input type="hidden" name="serveur" value={reglage.identifiant} />
 			<div class="nh-field">
@@ -239,11 +272,34 @@
 				<div class="nh-input"><input id="r-gd" name="gamedigType" value={reglage.gamedigType ?? ''} placeholder="minecraft, valheim, terraria…" /></div>
 				<div class="nh-field__hint">Facultatif. Sert à compter les joueurs connectés (liste sur github.com/gamedig/node-gamedig).</div>
 			</div>
+			<div class="nh-field">
+				<label class="nh-field__label" for="r-auto">Arrêt automatique</label>
+				<div class="nh-input">
+					<select id="r-auto" name="arretAuto" value={reglage.arretAutoMinutes ?? ''}>
+						<option value="">Jamais</option>
+						{#each DELAIS as d (d)}<option value={d}>Après {duree(d)} sans joueur</option>{/each}
+					</select>
+					<i class="icon-chevron-down" aria-hidden="true" style="pointer-events:none"></i>
+				</div>
+				<div class="nh-field__hint">Demande le type GameDig. Le hub arrête le serveur avec ta clé Sakura Panel, puis le note dans le journal.</div>
+			</div>
 			<div class="pied">
 				<button type="button" class="nh-btn nh-btn--ghost" onclick={() => (reglage = null)}>Annuler</button>
 				<button class="nh-btn nh-btn--primary">Enregistrer</button>
 			</div>
 		</form>
+	</Dialog>
+{/if}
+
+{#if enConsole}
+	<Dialog titre="Console de {enConsole.nom}" largeur={760} onfermer={() => (console_ = null)}>
+		<ConsoleServeur serveur={enConsole} />
+	</Dialog>
+{/if}
+
+{#if enSauvegardes}
+	<Dialog titre="Sauvegardes de {enSauvegardes.nom}" description="Faites par Sakura Panel. Le téléchargement passe directement par le panel." largeur={560} onfermer={() => (sauvegardes = null)}>
+		<SauvegardesServeur serveur={enSauvegardes} />
 	</Dialog>
 {/if}
 
@@ -405,26 +461,63 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.boutons {
+	.pied-carte {
 		margin-top: auto;
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2);
+		flex-direction: column;
+		gap: var(--space-3);
 	}
-	.boutons form {
+	.alim {
 		display: flex;
 		gap: 8px;
 		flex-wrap: wrap;
 	}
-	.boutons a:hover {
-		text-decoration: none;
+	.alim:not(:has(button)) {
+		display: none;
 	}
-	.espace {
-		flex: 1;
+	.outils {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--border-subtle);
+	}
+	.groupe {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+	}
+	.droite {
+		margin-left: auto;
+	}
+	.outils a:hover {
+		text-decoration: none;
 	}
 	.note {
 		font-size: 13px;
+		color: var(--fg-3);
+	}
+	.auto {
+		display: flex;
+		align-items: flex-start;
+		gap: 6px;
+		margin-top: calc(var(--space-2) * -1);
+	}
+	.auto i {
+		margin-top: 2px;
+	}
+	.auto strong {
+		font-weight: 500;
+		color: var(--warning-fg);
+	}
+	.cmd {
+		font-size: 12px;
+		padding: 1px 6px;
+	}
+	.detail {
 		color: var(--fg-3);
 	}
 	.journal {

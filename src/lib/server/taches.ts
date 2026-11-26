@@ -9,6 +9,7 @@ import { config } from './config.ts';
 import { db, schema } from './db/index.ts';
 import { annoncer, COULEURS, sansMiseEnForme, type Annonce } from './discord.ts';
 import { synchroniserTout } from './steam.ts';
+import { verifierArretsAuto } from './arret-auto.ts';
 import { cleJour, dateDe, enumerer, heureLisible, jourLong, majuscule, pluriel } from '../commune.ts';
 
 export interface Tache {
@@ -130,8 +131,12 @@ export async function verifierTaches(maintenant = new Date(), taches = TACHES) {
 
 let minuteur: ReturnType<typeof setInterval> | undefined;
 let enCours = false;
+let tours = 0;
 
-/** Vérifie les tâches toutes les minutes (appelé une fois, au démarrage du hub). */
+/**
+ * Vérifie les tâches du jour toutes les minutes, et l'arrêt automatique des serveurs
+ * une minute sur deux (appelé une fois, au démarrage du hub).
+ */
 export function demarrerTaches() {
 	if (minuteur) return;
 	const tour = async () => {
@@ -141,6 +146,11 @@ export function demarrerTaches() {
 			await verifierTaches();
 		} catch (e) {
 			console.error('[taches]', e);
+		}
+		try {
+			if (tours++ % 2 === 0) await verifierArretsAuto();
+		} catch (e) {
+			console.error('[arret-auto]', e);
 		} finally {
 			enCours = false;
 		}

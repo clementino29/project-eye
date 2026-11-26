@@ -10,7 +10,7 @@ export function remplacerEnvoiDiscord(f: Fetch) {
 	envoyeur = f;
 }
 
-export const COULEURS = { demarre: 0x3fb37f, partie: 0xf0a868, soiree: 0x6c8ebf } as const;
+export const COULEURS = { demarre: 0x3fb37f, arret: 0x8a8f98, partie: 0xf0a868, soiree: 0x6c8ebf } as const;
 
 export interface Annonce {
 	titre: string;

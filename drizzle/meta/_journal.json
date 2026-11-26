@@ -64,6 +64,13 @@
       "when": 1795726708953,
       "tag": "0008_automatisations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795727906325,
+      "tag": "0009_panel_v2",
+      "breakpoints": true
     }
   ]
 }

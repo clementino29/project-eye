@@ -1,13 +1,16 @@
 import { fail } from '@sveltejs/kit';
 import { desc, eq } from 'drizzle-orm';
-import { dechiffrer } from '#lib/server/crypto.ts';
+import { DELAIS_ARRET_AUTO } from '#lib/server/arret-auto.ts';
 import { db, schema } from '#lib/server/db/index.ts';
 import { exigerAdmin, exigerMembre } from '#lib/server/garde.ts';
 import { annoncerDemarrage } from '#lib/server/discord.ts';
 import { joueursConnectes } from '#lib/server/joueurs.ts';
+import { chargeMachine } from '#lib/server/machine.ts';
+import { clientDe, identifiantValide, permissions } from '#lib/server/panel.ts';
 import {
 	ClientPelican,
 	ErreurPelican,
+	SANS_PERMISSION,
 	urlServeurPelican,
 	type Permissions,
 	type RessourcesServeur,
@@ -20,23 +23,6 @@ const ACTIONS: Record<Signal, 'demarrer' | 'arreter' | 'redemarrer'> = {
 	stop: 'arreter',
 	restart: 'redemarrer'
 };
-
-// Cache des permissions (une minute) : elles changent rarement et coûtent un appel par serveur.
-const cachePermissions = new Map<string, { valeur: Permissions; expire: number }>();
-
-function clientDe(m: Membre) {
-	if (!m.clePelicanChiffree) return null;
-	return new ClientPelican(dechiffrer(m.clePelicanChiffree));
-}
-
-async function permissions(client: ClientPelican, membreId: number, id: string) {
-	const cle = `${membreId}:${id}`;
-	const c = cachePermissions.get(cle);
-	if (c && c.expire > Date.now()) return c.valeur;
-	const valeur = await client.permissions(id);
-	cachePermissions.set(cle, { valeur, expire: Date.now() + 60_000 });
-	return valeur;
-}
 
 export const load = async ({ locals, depends }) => {
 	depends('hub:panel');
@@ -58,14 +44,15 @@ export const load = async ({ locals, depends }) => {
 		.limit(20)
 		.all();
 	const jeux = base.select({ id: schema.jeux.id, titre: schema.jeux.titre }).from(schema.jeux).orderBy(schema.jeux.titre).all();
+	const machine = await chargeMachine().catch(() => null);
 
 	let client: ClientPelican | null = null;
 	try {
 		client = clientDe(m);
 	} catch {
-		return { etat: 'cle_illisible' as const, serveurs: [], journal, jeux };
+		return { etat: 'cle_illisible' as const, serveurs: [], journal, jeux, machine };
 	}
-	if (!client) return { etat: 'sans_cle' as const, serveurs: [], journal, jeux };
+	if (!client) return { etat: 'sans_cle' as const, serveurs: [], journal, jeux, machine };
 
 	let liste;
 	try {
@@ -77,7 +64,8 @@ export const load = async ({ locals, depends }) => {
 			message: e instanceof Error ? e.message : '',
 			serveurs: [],
 			journal,
-			jeux
+			jeux,
+			machine
 		};
 	}
 
@@ -89,9 +77,7 @@ export const load = async ({ locals, depends }) => {
 			const r = reglages.get(s.identifiant);
 			const [res, perms] = await Promise.all([
 				client.ressources(s.identifiant).catch((): RessourcesServeur | null => null),
-				permissions(client, m.id, s.identifiant).catch(
-					(): Permissions => ({ demarrer: false, arreter: false, redemarrer: false })
-				)
+				permissions(client, m.id, s.identifiant).catch((): Permissions => SANS_PERMISSION)
 			]);
 			const adresse = r?.adresseConnexion || s.adresse;
 			const joueurs =
@@ -109,6 +95,10 @@ export const load = async ({ locals, depends }) => {
 				etat: s.suspendu ? ('suspendu' as const) : s.enInstallation ? ('installation' as const) : (res?.etat ?? 'inconnu'),
 				ressources: res,
 				limites: s.limites,
+				sauvegardesMax: s.sauvegardesMax,
+				arretAutoMinutes: r?.arretAutoMinutes ?? null,
+				// Depuis quand il tourne sans personne, seulement si l'arrêt automatique veille dessus.
+				videDepuis: r?.arretAutoMinutes && res?.etat === 'running' ? (r.videDepuis ?? null) : null,
 				joueurs,
 				permissions: perms,
 				urlPelican: urlServeurPelican(s.identifiant)
@@ -116,39 +106,52 @@ export const load = async ({ locals, depends }) => {
 		})
 	);
 	serveurs.sort((a, b) => Number(b.etat === 'running') - Number(a.etat === 'running') || a.nom.localeCompare(b.nom, 'fr'));
-	return { etat: 'ok' as const, serveurs, journal, jeux };
+	return { etat: 'ok' as const, serveurs, journal, jeux, machine };
 };
+
+/** Serveur, nom affiché et client Pelican du membre, lus dans le formulaire. */
+function preparer(m: Membre, f: FormData) {
+	const id = String(f.get('serveur') ?? '');
+	const nom = String(f.get('nom') ?? id).slice(0, 100);
+	if (!identifiantValide(id)) return { erreur: fail(400, { erreur: 'Serveur inconnu.' }) };
+	let client: ClientPelican | null;
+	try {
+		client = clientDe(m);
+	} catch {
+		client = null;
+	}
+	if (!client) return { erreur: fail(400, { erreur: 'Ajoute d’abord ta clé Sakura Panel dans ton compte.' }) };
+	const noter = (action: (typeof schema.actionsServeur.$inferInsert)['action'], resultat: 'ok' | 'erreur', message: string | null) =>
+		db()
+			.insert(schema.actionsServeur)
+			.values({ identifiantPelican: id, nomServeur: nom, membreId: m.id, action, resultat, message, date: Date.now() })
+			.run();
+	return { id, nom, client, noter };
+}
+
+const REFUS = 'Tu n’as pas cette permission dans Sakura Panel.';
+const messageDe = (e: unknown) => (e instanceof Error ? e.message : 'Erreur inconnue');
 
 export const actions = {
 	alimentation: async ({ request, locals }) => {
 		const m = exigerMembre(locals);
 		const f = await request.formData();
-		const id = String(f.get('serveur') ?? '');
 		const signal = String(f.get('signal') ?? '') as Signal;
-		const nom = String(f.get('nom') ?? id).slice(0, 100);
-		if (!id || !(signal in ACTIONS)) return fail(400, { erreur: 'Action inconnue.' });
-		let client: ClientPelican | null;
-		try {
-			client = clientDe(m);
-		} catch {
-			client = null;
-		}
-		if (!client) return fail(400, { erreur: 'Ajoute d’abord ta clé Sakura Panel dans ton compte.' });
-
-		const noter = (resultat: 'ok' | 'erreur', message: string | null) =>
-			db()
-				.insert(schema.actionsServeur)
-				.values({ identifiantPelican: id, nomServeur: nom, membreId: m.id, action: ACTIONS[signal], resultat, message, date: Date.now() })
-				.run();
+		if (!(signal in ACTIONS)) return fail(400, { erreur: 'Action inconnue.' });
+		const c = preparer(m, f);
+		if (c.erreur) return c.erreur;
+		const { id, nom, client, noter } = c;
 		try {
 			const p = await permissions(client, m.id, id);
 			const autorise = signal === 'start' ? p.demarrer : signal === 'stop' ? p.arreter : p.redemarrer;
 			if (!autorise) {
-				noter('erreur', 'Refusé : pas la permission dans Sakura Panel');
-				return fail(403, { erreur: 'Tu n’as pas cette permission dans Sakura Panel.' });
+				noter(ACTIONS[signal], 'erreur', 'Refusé : pas la permission dans Sakura Panel');
+				return fail(403, { erreur: REFUS });
 			}
 			await client.alimentation(id, signal);
-			noter('ok', null);
+			noter(ACTIONS[signal], 'ok', null);
+			// Démarré à la main : l'arrêt automatique repart de zéro.
+			db().update(schema.serveurs).set({ videDepuis: null }).where(eq(schema.serveurs.identifiantPelican, id)).run();
 			// Annonce Discord (sans attendre, ni bloquer en cas d'échec). Le nom et le jeu viennent des réglages du hub.
 			if (signal === 'start') {
 				const local = db()
@@ -161,24 +164,94 @@ export const actions = {
 			}
 			return { ok: true, signal, nom };
 		} catch (e) {
-			const message = e instanceof Error ? e.message : 'Erreur inconnue';
-			noter('erreur', message);
+			noter(ACTIONS[signal], 'erreur', messageDe(e));
+			return fail(502, { erreur: messageDe(e) });
+		}
+	},
+
+	/** Commande envoyée à la console du serveur (permission « control.console »). */
+	commande: async ({ request, locals }) => {
+		const m = exigerMembre(locals);
+		const f = await request.formData();
+		const commande = String(f.get('commande') ?? '').trim().replace(/^\//, '');
+		if (!commande) return fail(400, { erreur: 'Écris une commande.' });
+		if (commande.length > 500 || /[\r\n]/.test(commande)) return fail(400, { erreur: 'Une seule ligne, 500 caractères au plus.' });
+		const c = preparer(m, f);
+		if (c.erreur) return c.erreur;
+		const { id, client, noter } = c;
+		// Le journal garde le début de la commande, pour savoir qui a fait quoi.
+		const trace = commande.length > 80 ? `${commande.slice(0, 80)}…` : commande;
+		try {
+			const p = await permissions(client, m.id, id);
+			if (!p.commande) return fail(403, { erreur: REFUS });
+			await client.commande(id, commande);
+			noter('commande', 'ok', trace);
+			return { ok: true, commande: true };
+		} catch (e) {
+			// Pelican répond 502 quand le serveur est éteint.
+			const message = e instanceof ErreurPelican && e.statut === 502 ? 'Le serveur doit être démarré pour recevoir une commande.' : messageDe(e);
+			noter('commande', 'erreur', `${trace} : ${message}`.slice(0, 300));
+			return fail(502, { erreur: message });
+		}
+	},
+
+	/** Nouvelle sauvegarde (permission « backup.create »), dans la limite fixée par Sakura Panel. */
+	sauvegarder: async ({ request, locals }) => {
+		const m = exigerMembre(locals);
+		const f = await request.formData();
+		const c = preparer(m, f);
+		if (c.erreur) return c.erreur;
+		const { id, client, noter } = c;
+		const nomSauvegarde = String(f.get('nomSauvegarde') ?? '').trim().slice(0, 120) ||
+			`Depuis le hub, ${new Date().toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+		try {
+			const p = await permissions(client, m.id, id);
+			if (!p.sauvegardes.creer) return fail(403, { erreur: REFUS });
+			const s = await client.creerSauvegarde(id, nomSauvegarde);
+			noter('sauvegarde', 'ok', nomSauvegarde);
+			return { ok: true, sauvegarde: s };
+		} catch (e) {
+			// 400 : la limite de sauvegardes du serveur est atteinte ; 429 : une sauvegarde est déjà en cours.
+			const message =
+				e instanceof ErreurPelican && e.statut === 400
+					? 'Plus de place : supprime une ancienne sauvegarde dans Sakura Panel.'
+					: e instanceof ErreurPelican && e.statut === 429
+						? 'Une sauvegarde est déjà en cours, ou la dernière est trop récente. Réessaie dans quelques minutes.'
+						: messageDe(e);
+			noter('sauvegarde', 'erreur', message);
 			return fail(502, { erreur: message });
 		}
 	},
 
 	reglages: async ({ request, locals }) => {
-		exigerAdmin(locals);
+		const admin = exigerAdmin(locals);
 		const f = await request.formData();
 		const identifiantPelican = String(f.get('serveur') ?? '');
-		if (!identifiantPelican) return fail(400, { erreur: 'Serveur inconnu.' });
+		if (!identifiantValide(identifiantPelican)) return fail(400, { erreur: 'Serveur inconnu.' });
 		const texte = (k: string, max = 120) => String(f.get(k) ?? '').trim().slice(0, max) || null;
 		const jeuId = Number(f.get('jeuId')) || null;
 		const gamedigType = texte('gamedigType', 40);
 		if (gamedigType && !/^[a-z0-9_-]+$/.test(gamedigType)) {
 			return fail(400, { erreur: 'Le type GameDig ne contient que des lettres minuscules, chiffres, - et _.' });
 		}
-		const valeurs = { nom: texte('nom'), adresseConnexion: texte('adresse'), gamedigType, jeuId };
+		const minutes = Number(f.get('arretAuto')) || null;
+		if (minutes && !(DELAIS_ARRET_AUTO as readonly number[]).includes(minutes)) return fail(400, { erreur: 'Délai d’arrêt inconnu.' });
+		if (minutes && !gamedigType) {
+			return fail(400, { erreur: 'L’arrêt automatique a besoin du type GameDig, pour savoir si quelqu’un joue.' });
+		}
+		if (minutes && !admin.clePelicanChiffree) {
+			return fail(400, { erreur: 'L’arrêt automatique utilise ta clé Sakura Panel : ajoute-la d’abord dans ton compte.' });
+		}
+		const valeurs = {
+			nom: texte('nom'),
+			adresseConnexion: texte('adresse'),
+			gamedigType,
+			jeuId,
+			arretAutoMinutes: minutes,
+			// Le dernier admin qui enregistre un arrêt automatique prête sa clé pour arrêter.
+			arretAutoParId: minutes ? admin.id : null,
+			...(minutes ? {} : { videDepuis: null })
+		};
 		db()
 			.insert(schema.serveurs)
 			.values({ identifiantPelican, ...valeurs })

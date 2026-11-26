@@ -15,6 +15,8 @@ export interface ServeurPelican {
 	enInstallation: boolean;
 	adresse: string | null;
 	limites: { memoireMo: number; cpu: number; disqueMo: number };
+	/** Nombre de sauvegardes autorisées par Sakura Panel (0 = aucune). */
+	sauvegardesMax: number;
 }
 
 export interface RessourcesServeur {
@@ -29,6 +31,31 @@ export interface Permissions {
 	demarrer: boolean;
 	arreter: boolean;
 	redemarrer: boolean;
+	/** Lire la console (connexion websocket). */
+	console: boolean;
+	/** Envoyer une commande à la console. */
+	commande: boolean;
+	sauvegardes: { voir: boolean; creer: boolean; telecharger: boolean };
+}
+
+export const SANS_PERMISSION: Permissions = {
+	demarrer: false,
+	arreter: false,
+	redemarrer: false,
+	console: false,
+	commande: false,
+	sauvegardes: { voir: false, creer: false, telecharger: false }
+};
+
+export interface Sauvegarde {
+	uuid: string;
+	nom: string;
+	reussie: boolean;
+	verrouillee: boolean;
+	octets: number;
+	creeeLe: number;
+	/** Vide tant que la sauvegarde est en cours. */
+	termineeLe: number | null;
 }
 
 export class ErreurPelican extends Error {
@@ -115,6 +142,90 @@ export class ClientPelican {
 		return permissionsDepuisMeta(r.meta);
 	}
 
+	async commande(identifiant: string, commande: string): Promise<void> {
+		await this.appel(`/servers/${encodeURIComponent(identifiant)}/command`, {
+			method: 'POST',
+			body: JSON.stringify({ command: commande })
+		});
+	}
+
+	/** Jeton et adresse du websocket de Wings, qui seul donne la console. */
+	async websocket(identifiant: string): Promise<{ jeton: string; adresse: string }> {
+		const r = await this.appel<{ data: { token: string; socket: string } }>(`/servers/${encodeURIComponent(identifiant)}/websocket`);
+		return { jeton: r.data.token, adresse: r.data.socket };
+	}
+
+	/**
+	 * Dernières lignes de la console : on se connecte au websocket de Wings, on demande
+	 * l'historique (« send logs ») et on garde ce qui arrive pendant un court instant.
+	 */
+	async console(identifiant: string, { attente = 1200, max = 200, Socket = WebSocket } = {}): Promise<string[]> {
+		const { jeton, adresse } = await this.websocket(identifiant);
+		const lignes: string[] = [];
+		await new Promise<void>((fini, echec) => {
+			let ws: WebSocket;
+			try {
+				// Wings n'accepte que l'origine du panel.
+				ws = new Socket(adresse, { headers: { Origin: this.base ?? '' } } as never);
+			} catch {
+				return echec(new ErreurPelican('Console injoignable.', 503));
+			}
+			let minuteur: ReturnType<typeof setTimeout> | undefined;
+			const fermer = (e?: Error) => {
+				clearTimeout(minuteur);
+				clearTimeout(garde);
+				try {
+					ws.close();
+				} catch {
+					// déjà fermé
+				}
+				if (e) echec(e);
+				else fini();
+			};
+			const garde = setTimeout(() => fermer(lignes.length ? undefined : new ErreurPelican('La console ne répond pas.', 504)), attente + 5000);
+			ws.onopen = () => ws.send(JSON.stringify({ event: 'auth', args: [jeton] }));
+			ws.onerror = () => fermer(new ErreurPelican('Console injoignable.', 503));
+			ws.onmessage = (m) => {
+				let msg: { event?: string; args?: unknown[] };
+				try {
+					msg = JSON.parse(String(m.data));
+				} catch {
+					return;
+				}
+				if (msg.event === 'auth success') {
+					ws.send(JSON.stringify({ event: 'send logs', args: [null] }));
+					minuteur = setTimeout(() => fermer(), attente);
+				} else if (msg.event === 'console output' || msg.event === 'install output' || msg.event === 'daemon message') {
+					for (const a of msg.args ?? []) for (const l of String(a).split(/\r?\n/)) lignes.push(nettoyerLigne(l));
+				} else if (msg.event === 'jwt error' || msg.event === 'token expired') {
+					fermer(new ErreurPelican('Sakura Panel refuse l’accès à la console.', 403));
+				}
+			};
+		});
+		return lignes.slice(-max);
+	}
+
+	async sauvegardes(identifiant: string): Promise<Sauvegarde[]> {
+		const r = await this.appel<{ data: { attributes: AttributsSauvegarde }[] }>(`/servers/${encodeURIComponent(identifiant)}/backups?per_page=50`);
+		return r.data.map((d) => versSauvegarde(d.attributes)).sort((a, b) => b.creeeLe - a.creeeLe);
+	}
+
+	async creerSauvegarde(identifiant: string, nom: string): Promise<Sauvegarde> {
+		const r = await this.appel<{ attributes: AttributsSauvegarde }>(`/servers/${encodeURIComponent(identifiant)}/backups`, {
+			method: 'POST',
+			body: JSON.stringify({ name: nom })
+		});
+		return versSauvegarde(r.attributes);
+	}
+
+	/** Lien de téléchargement signé (valable quelques minutes), fourni par Wings. */
+	async lienSauvegarde(identifiant: string, uuid: string): Promise<string> {
+		const r = await this.appel<{ attributes: { url: string } }>(
+			`/servers/${encodeURIComponent(identifiant)}/backups/${encodeURIComponent(uuid)}/download`
+		);
+		return r.attributes.url;
+	}
+
 	async alimentation(identifiant: string, signal: Signal): Promise<void> {
 		await this.appel(`/servers/${encodeURIComponent(identifiant)}/power`, {
 			method: 'POST',
@@ -126,8 +237,42 @@ export class ClientPelican {
 export function permissionsDepuisMeta(meta?: { is_server_owner?: boolean; user_permissions?: string[] }): Permissions {
 	const p = meta?.user_permissions ?? [];
 	const tout = !!meta?.is_server_owner || p.includes('*');
-	const a = (droit: string) => tout || p.includes(droit) || p.includes('control.*');
-	return { demarrer: a('control.start'), arreter: a('control.stop'), redemarrer: a('control.restart') };
+	const a = (droit: string) => tout || p.includes(droit) || p.includes(`${droit.split('.')[0]}.*`);
+	return {
+		demarrer: a('control.start'),
+		arreter: a('control.stop'),
+		redemarrer: a('control.restart'),
+		console: a('websocket.connect'),
+		commande: a('control.console'),
+		sauvegardes: { voir: a('backup.read'), creer: a('backup.create'), telecharger: a('backup.download') }
+	};
+}
+
+/** Retire les codes de couleur ANSI des lignes de console. */
+export const nettoyerLigne = (l: string) =>
+	// eslint-disable-next-line no-control-regex
+	l.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\u001b[@-_]/g, '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '');
+
+interface AttributsSauvegarde {
+	uuid: string;
+	name: string;
+	is_successful?: boolean;
+	is_locked?: boolean;
+	bytes?: number;
+	created_at: string;
+	completed_at?: string | null;
+}
+
+export function versSauvegarde(a: AttributsSauvegarde): Sauvegarde {
+	return {
+		uuid: a.uuid,
+		nom: a.name,
+		reussie: !!a.is_successful,
+		verrouillee: !!a.is_locked,
+		octets: a.bytes ?? 0,
+		creeeLe: Date.parse(a.created_at) || 0,
+		termineeLe: a.completed_at ? Date.parse(a.completed_at) || null : null
+	};
 }
 
 export function urlServeurPelican(identifiant: string) {
@@ -145,6 +290,7 @@ interface AttributsServeur {
 	is_installing?: boolean;
 	status?: string | null;
 	limits?: { memory?: number; cpu?: number; disk?: number };
+	feature_limits?: { backups?: number };
 	relationships?: {
 		allocations?: {
 			data?: { attributes: { ip: string; ip_alias?: string | null; port: number; is_default?: boolean } }[];
@@ -179,7 +325,8 @@ export function versServeur(a: AttributsServeur): ServeurPelican {
 		suspendu: !!a.is_suspended || a.status === 'suspended',
 		enInstallation: !!a.is_installing || a.status === 'installing',
 		adresse: defaut ? `${defaut.ip_alias || defaut.ip}:${defaut.port}` : null,
-		limites: { memoireMo: a.limits?.memory ?? 0, cpu: a.limits?.cpu ?? 0, disqueMo: a.limits?.disk ?? 0 }
+		limites: { memoireMo: a.limits?.memory ?? 0, cpu: a.limits?.cpu ?? 0, disqueMo: a.limits?.disk ?? 0 },
+		sauvegardesMax: a.feature_limits?.backups ?? 0
 	};
 }
 
