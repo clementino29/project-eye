@@ -4,6 +4,7 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import { artJeu } from '#lib/design/art.ts';
+	import { imageSteam } from '#lib/quoi-faire.ts';
 	import { toasts } from '#lib/toasts.svelte.ts';
 	import { ilYa } from '#lib/libelles.ts';
 
@@ -139,6 +140,8 @@
 	function clicDocument(e: PointerEvent) {
 		if (menuPhoto && zonePhoto && !zonePhoto.contains(e.target as Node)) menuPhoto = false;
 	}
+	/** Cache une image Steam qui ne charge pas : la jaquette dessinée prend le relais. */
+	const masquer = (e: Event) => ((e.currentTarget as HTMLImageElement).style.display = 'none');
 </script>
 
 <svelte:head><title>Mon compte · Nohriancons</title></svelte:head>
@@ -235,7 +238,7 @@
 				<div class="jeux" style:opacity={synchro ? 0.4 : 1}>
 					{#each data.steam.apercu as j (j.id)}
 						{@const art = artJeu(j.nom)}
-						<div class="jaquette" style:background={art.grad} title={j.nom}><i class="icon-{art.icon}" aria-hidden="true"></i><span>{j.nom}</span></div>
+						<div class="jaquette" style:background={art.grad} title={j.nom}><i class="icon-{art.icon}" aria-hidden="true"></i><span>{j.nom}</span><img src={imageSteam(j.id)} alt={j.nom} loading="lazy" onerror={masquer} /></div>
 					{/each}
 					{#if data.steam.total > data.steam.apercu.length}
 						<div class="reste">+ {data.steam.total - data.steam.apercu.length} autres</div>
@@ -593,7 +596,7 @@
 		aspect-ratio: 460/215;
 		border-radius: 10px;
 	}
-	/* Jaquette dessinée : les images Steam sont bloquées. */
+	/* Jaquette dessinée, sous l'image Steam : elle reste si l'image ne charge pas. */
 	.jaquette {
 		position: relative;
 		overflow: hidden;
@@ -613,6 +616,13 @@
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
+	}
+	.jaquette img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 	.jaquette i {
 		position: absolute;
