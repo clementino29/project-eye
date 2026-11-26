@@ -95,6 +95,15 @@ export const config = {
 			return !!(lire('IGDB_CLIENT_ID') && lire('IGDB_CLIENT_SECRET'));
 		}
 	},
+	/** TMDB (films et séries) : clé d'API v3 ou jeton de lecture v4, gratuits sur themoviedb.org. */
+	tmdb: {
+		get cle() {
+			return lire('TMDB_API_KEY');
+		},
+		get configure() {
+			return !!lire('TMDB_API_KEY');
+		}
+	},
 	pelican: {
 		get url() {
 			return sansSlashFinal(lire('PELICAN_URL'));

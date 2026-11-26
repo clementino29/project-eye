@@ -35,3 +35,9 @@ export const PASTILLES_SERVEUR = {
 	suspendu: { l: 'Suspendu', ...ROUGE, icone: 'ban' },
 	inconnu: { l: 'Inconnu', ...GRIS, icone: 'circle-help' }
 } satisfies Record<string, Pastille>;
+
+export const PASTILLES_WATCHLIST = {
+	cours: { l: 'En cours', ...BLEU, icone: 'play' },
+	avoir: { l: 'À voir', ...GRIS, icone: 'circle-dashed' },
+	vu: { l: 'Vu', ...VERT, icone: 'check' }
+} satisfies Record<string, Pastille>;

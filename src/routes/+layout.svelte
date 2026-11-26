@@ -12,7 +12,7 @@
 		if (p.startsWith('/jeux/liste')) return 'jeux-en-cours';
 		if (p.startsWith('/jeux/parties')) return 'parties';
 		if (p.startsWith('/jeux/quoi-faire')) return 'quoi-faire';
-		if (p.startsWith('/films/ma-watchlist')) return 'watchlist';
+		if (/^\/films\/(ma-watchlist|les-potes|titre)(\/|$)/.test(p)) return 'watchlist';
 		if (p.startsWith('/films')) return 'films';
 		if (p.startsWith('/fichiers')) return 'fichiers';
 		if (p.startsWith('/panel')) return 'panel';

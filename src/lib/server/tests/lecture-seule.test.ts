@@ -45,7 +45,7 @@ describe('adresses ouvertes aux visiteurs', () => {
 			expect(ouvertAuxVisiteurs('GET', c), c).toBe(true);
 	});
 	it('garde fermés le Panel, le Compte et toute écriture', () => {
-		for (const c of ['/panel', '/compte', '/jeux/igdb', '/jeux/liste/autre', '/deconnexion'])
+		for (const c of ['/panel', '/compte', '/jeux/igdb', '/jeux/liste/autre', '/deconnexion', '/films/ma-watchlist', '/films/les-potes', '/films/titre/1', '/films/tmdb'])
 			expect(ouvertAuxVisiteurs('GET', c), c).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/jeux/liste')).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/jeux/quoi-faire')).toBe(false);
