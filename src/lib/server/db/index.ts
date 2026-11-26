@@ -18,7 +18,17 @@ export function ouvrirBase(fichier: string): Db {
 	const db = drizzle(sqlite, { schema });
 	const dossier = dossierMigrations();
 	if (fichier !== ':memory:') copierAvantMigration(sqlite, fichier, dossier);
-	migrate(db, { migrationsFolder: dossier });
+	// Les migrations tournent dans une transaction, où PRAGMA foreign_keys n'a pas d'effet :
+	// on coupe les clés étrangères avant, sinon recréer une table (SQLite) effacerait en
+	// cascade les lignes qui la référencent. On vérifie l'intégrité juste après.
+	sqlite.pragma('foreign_keys = OFF');
+	try {
+		migrate(db, { migrationsFolder: dossier });
+	} finally {
+		sqlite.pragma('foreign_keys = ON');
+	}
+	const erreurs = sqlite.pragma('foreign_key_check') as unknown[];
+	if (erreurs.length) console.warn(`[base] ${erreurs.length} lien(s) cassé(s) après migration`, erreurs.slice(0, 5));
 	return db;
 }
 

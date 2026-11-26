@@ -138,13 +138,45 @@ export const parties = sqliteTable('parties', {
 		.default('en_cours'),
 	/** Vide = sans limite de tours. */
 	toursMax: integer('tours_max'),
-	gagnantId: integer('gagnant_id').references(() => membres.id, { onDelete: 'set null' }),
 	serveurId: integer('serveur_id').references(() => serveurs.id, { onDelete: 'set null' }),
 	creeeLe: integer('creee_le').notNull().default(maintenant)
 });
 
+/** Équipes d'une partie « en équipes ». Une partie sans équipe se joue chacun pour soi. */
+export const equipes = sqliteTable(
+	'equipes',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		partieId: integer('partie_id')
+			.notNull()
+			.references(() => parties.id, { onDelete: 'cascade' }),
+		nom: text('nom').notNull(),
+		/** Clé de couleur (voir COULEURS_EQUIPE). */
+		couleur: text('couleur').notNull(),
+		ordre: integer('ordre').notNull().default(0),
+		/** Équipe victorieuse (plusieurs possibles : égalité). */
+		gagnante: integer('gagnante', { mode: 'boolean' }).notNull().default(false)
+	},
+	(t) => [index('equipes_partie').on(t.partieId)]
+);
+
 export const participations = sqliteTable(
 	'participations',
+	{
+		partieId: integer('partie_id')
+			.notNull()
+			.references(() => parties.id, { onDelete: 'cascade' }),
+		membreId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		equipeId: integer('equipe_id').references(() => equipes.id, { onDelete: 'set null' })
+	},
+	(t) => [primaryKey({ columns: [t.partieId, t.membreId] })]
+);
+
+/** Vainqueurs d'une partie chacun pour soi (plusieurs possibles : égalité). */
+export const gagnantsPartie = sqliteTable(
+	'gagnants_partie',
 	{
 		partieId: integer('partie_id')
 			.notNull()

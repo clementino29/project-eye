@@ -7,7 +7,7 @@
 	import AvatarGroup from '#lib/components/AvatarGroup.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import Lueur from '#lib/components/Lueur.svelte';
-	import { artJeu, fondImage } from '#lib/design/art.ts';
+	import { artJeu } from '#lib/design/art.ts';
 	import Tabs from '#lib/components/Tabs.svelte';
 	import { envoyer } from '#lib/actions.ts';
 	import { ilYa } from '#lib/libelles.ts';
@@ -21,6 +21,7 @@
 		partsDeLaRoue,
 		rotationPour,
 		tirer,
+		imageSteam,
 		type JeuCommun
 	} from '#lib/quoi-faire.ts';
 
@@ -173,10 +174,12 @@
 		if (!fiche) return;
 		if (await envoyer('?/fiche', { appid: fiche.appid, mode: fiche.mode, joueursMax: fiche.max, court: fiche.court })) fiche = null;
 	}
+	/** Cache une image qui ne charge pas : la jaquette dessinée en dessous prend le relais. */
+	const masquer = (e: Event) => ((e.currentTarget as HTMLImageElement).style.display = 'none');
 	// Fond flou : le jeu tiré par la roue, sinon le dernier validé, sinon le premier jeu en commun.
 	const vedette = $derived.by(() => {
 		const j = (gagnant !== null ? data.jeux.find((x) => x.id === gagnant) : undefined) ?? (data.dernier ? data.jeux.find((x) => x.nom === data.dernier!.nom) : undefined) ?? communs[0] ?? data.jeux[0];
-		return j ? { art: artJeu(j.nom), image: j.image ?? null } : null;
+		return j ? { art: artJeu(j.nom), image: j.image || imageSteam(j.id) } : null;
 	});
 </script>
 
@@ -184,11 +187,11 @@
 
 {#snippet jaquette(j: JeuCommun, forme: 'banniere' | 'vignette')}
 	{@const art = artJeu(j.nom)}
-	<div class={forme} aria-hidden={forme === 'vignette' ? 'true' : undefined} style:background-color={art.solid} style:background-image={fondImage(art, j.image)}>
-		{#if !j.image}
-			<i class="icon-{art.icon} filigrane" aria-hidden="true"></i>
-			{#if forme === 'banniere'}<span class="j-titre">{j.nom}</span>{/if}
-		{/if}
+	<div class={forme} aria-hidden={forme === 'vignette' ? 'true' : undefined} style:background-color={art.solid} style:background-image={art.grad}>
+		<i class="icon-{art.icon} filigrane" aria-hidden="true"></i>
+		{#if forme === 'banniere'}<span class="j-titre">{j.nom}</span>{/if}
+		<!-- Image de la Liste des jeux, sinon celle de Steam ; la jaquette dessinée reste dessous si elle ne charge pas. -->
+		<img class="photo" src={j.image || imageSteam(j.id, forme === 'banniere' ? 'header' : 'capsule')} alt="" loading="lazy" onerror={masquer} />
 	</div>
 {/snippet}
 
@@ -575,6 +578,13 @@
 		padding: 14px 16px;
 		background-size: cover;
 		background-position: center;
+	}
+	.photo {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 	.j-titre {
 		position: relative;

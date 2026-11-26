@@ -91,3 +91,11 @@ export function listeNoms(noms: string[]) {
 	return `${noms.slice(0, -1).join(', ')} et ${noms[noms.length - 1]}`;
 }
 
+/**
+ * Images publiques du Steam Store (bannière ou petite capsule). Toujours affichées
+ * par-dessus une jaquette dessinée, qui reste visible si Steam ne répond pas.
+ */
+export const imageSteam = (appid: number, type: 'header' | 'capsule' = 'header') =>
+	`https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/${
+		type === 'header' ? 'header.jpg' : 'capsule_231x87.jpg'
+	}`;
