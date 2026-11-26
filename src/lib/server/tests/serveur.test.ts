@@ -32,10 +32,11 @@ describe('chiffrement des clés Pelican', () => {
 
 describe('Pelican', () => {
 	it('lit les permissions', () => {
-		expect(permissionsDepuisMeta({ is_server_owner: true })).toEqual({ demarrer: true, arreter: true, redemarrer: true });
-		expect(permissionsDepuisMeta({ user_permissions: ['control.start'] })).toEqual({ demarrer: true, arreter: false, redemarrer: false });
+		const tout = permissionsDepuisMeta({ is_server_owner: true });
+		expect([tout.demarrer, tout.arreter, tout.redemarrer, tout.console, tout.commande, tout.sauvegardes.creer]).toEqual([true, true, true, true, true, true]);
+		expect(permissionsDepuisMeta({ user_permissions: ['control.start'] })).toMatchObject({ demarrer: true, arreter: false, redemarrer: false, commande: false });
 		expect(permissionsDepuisMeta({ user_permissions: ['control.*'] }).redemarrer).toBe(true);
-		expect(permissionsDepuisMeta(undefined)).toEqual({ demarrer: false, arreter: false, redemarrer: false });
+		expect(permissionsDepuisMeta(undefined)).toMatchObject({ demarrer: false, arreter: false, redemarrer: false });
 	});
 
 	it("convertit un serveur et choisit l'adresse par défaut", () => {

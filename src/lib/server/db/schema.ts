@@ -270,7 +270,13 @@ export const serveurs = sqliteTable('serveurs', {
 	jeuId: integer('jeu_id').references(() => jeux.id, { onDelete: 'set null' }),
 	adresseConnexion: text('adresse_connexion'),
 	/** Type de jeu GameDig (ex. « minecraft », « valheim ») pour lister les joueurs connectés. */
-	gamedigType: text('gamedig_type')
+	gamedigType: text('gamedig_type'),
+	/** Arrêt automatique après tant de minutes sans joueur (vide = jamais). Demande un type GameDig. */
+	arretAutoMinutes: integer('arret_auto_minutes'),
+	/** Admin dont la clé Sakura Panel sert à l'arrêt automatique (celui qui l'a réglé). */
+	arretAutoParId: integer('arret_auto_par_id').references(() => membres.id, { onDelete: 'set null' }),
+	/** Depuis quand le serveur tourne sans personne (vide = quelqu'un est connecté, ou il est arrêté). */
+	videDepuis: integer('vide_depuis')
 });
 
 /** Journal d'audit des actions serveur faites depuis le hub. Jamais modifié. */
@@ -282,7 +288,7 @@ export const actionsServeur = sqliteTable(
 		nomServeur: text('nom_serveur').notNull(),
 		membreId: integer('membre_id').references(() => membres.id, { onDelete: 'set null' }),
 		action: text('action', {
-			enum: ['demarrer', 'arreter', 'redemarrer', 'commande', 'sauvegarde']
+			enum: ['demarrer', 'arreter', 'redemarrer', 'commande', 'sauvegarde', 'arret_auto']
 		}).notNull(),
 		resultat: text('resultat', { enum: ['ok', 'erreur'] }).notNull(),
 		message: text('message'),

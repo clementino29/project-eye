@@ -12,7 +12,7 @@ Hub privé du groupe : jeux en cours, parties, choix du jeu, panel serveur et st
 | **Jeux › Parties** | Parties au tour par tour : avancement, gagnant, journal des sessions, prochaine session annoncée sur Discord. |
 | **Jeux › Quoi faire ?** | Jeux Steam en commun entre les présents, onglet « Presque », envies et roue pondérée. |
 | **Fichiers** | Jeux et projets avec leurs fichiers à installer (applis, mods, configs, liens), filtrés par plateforme, et leurs étapes d'installation. Réservé aux membres. |
-| **Panel** | Serveurs Sakura Panel (Pelican) : état, démarrer, arrêter, redémarrer, journal des actions. |
+| **Panel** | Serveurs Sakura Panel (Pelican) : état, démarrer, arrêter, redémarrer, console, sauvegardes, arrêt automatique, charge de la machine, journal des actions. |
 | **Status** | État des services suivis par Uptime Kuma. |
 | **Compte** | Profil Authentik, photo, liaison Steam, clé Sakura Panel. Les admins y voient la liste des membres. |
 
@@ -100,6 +100,28 @@ Le hub vérifie la clé auprès de Pelican avant de l'enregistrer, puis la garde
 Les liens « Ouvrir dans Sakura Panel » utilisent l'identifiant court du serveur (`/server/<id court>`).
 Les admins peuvent, depuis le Panel, relier un serveur à un jeu de la liste et régler l'adresse affichée et la sonde de joueurs (GameDig).
 
+Chaque bouton suit les permissions Pelican du membre sur le serveur :
+
+| Bouton | Permission Pelican |
+| --- | --- |
+| Démarrer, Arrêter, Redémarrer | `control.start`, `control.stop`, `control.restart` |
+| Console (lire les dernières lignes) | `websocket.connect` |
+| Console (envoyer une commande) | `control.console` |
+| Sauvegardes (voir, créer, télécharger) | `backup.read`, `backup.create`, `backup.download` |
+
+La console passe par le websocket de Wings, ouvert par le hub avec l'origine `PELICAN_URL` : le conteneur du hub doit donc
+joindre le nœud Wings (son adresse `wss://…:8080`). Les commandes et les sauvegardes sont notées dans le journal des actions.
+Un téléchargement de sauvegarde renvoie le navigateur vers le lien signé de Wings, valable quelques minutes. Le nombre de
+sauvegardes par serveur reste celui fixé dans Pelican (« Backup limit ») ; on en supprime une dans Pelican.
+
+**Arrêt automatique.** Dans les réglages d'un serveur, un admin peut choisir « Après 15 min, 30 min, 1 h ou 2 h sans joueur ».
+Il faut le type GameDig, qui compte les joueurs. Toutes les deux minutes, le hub interroge le jeu ; quand personne n'est connecté
+pendant tout le délai, il arrête le serveur avec la clé Pelican de l'admin qui a enregistré le réglage, le note dans le journal et
+l'annonce sur Discord. Si le jeu ne répond pas (démarrage en cours, mauvais type), le hub ne décide rien. `TACHES=0` le coupe aussi.
+
+**Charge de la machine.** En haut du Panel, le processeur, la mémoire et le disque du VPS. Dans Docker, le hub les lit dans
+`/proc` (qui décrit la machine entière) et sur le volume des données (le disque du VPS) : rien à configurer.
+
 ### IGDB
 
 Dans la fenêtre « Ajouter un jeu », une recherche IGDB remplit le titre exact, la série et l'image (illustration large si IGDB en a une, sinon la jaquette). Tout reste modifiable à la main.
@@ -120,7 +142,7 @@ Sans clé, les pages s'ouvrent mais la fenêtre « Ajouter un titre » ne peut r
 
 ### Discord et tâches automatiques
 
-Le hub lance seul deux tâches, à l'heure de Paris :
+Le hub lance seul deux tâches, à l'heure de Paris (en plus de l'arrêt automatique des serveurs, vu plus haut) :
 
 - **chaque nuit** (`HEURE_SYNCHRO_STEAM`, 5 h) : il relit les bibliothèques Steam de tous les membres liés, comme le bouton « Actualiser » de Quoi faire ? ;
 - **chaque jour** (`HEURE_ANNONCES`, 18 h) : il annonce sur Discord les soirées de la Watch list commune et les sessions de parties prévues le lendemain.
