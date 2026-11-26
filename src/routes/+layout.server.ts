@@ -7,8 +7,8 @@ export const load = async ({ locals }) => {
 	return {
 		moi: m ? { id: m.id, nom: m.nom, pseudo: m.pseudo, photo: urlPhoto(m), role: m.role } : null,
 		// Films & séries : la Watch list commune pour tous, Ma watchlist pour les membres.
-		// Fichiers apparaîtra dans le menu quand sa page sera livrée.
-		rubriques: { films: true, filmsCommune: true, fichiers: false, planningUrl: config.planningUrl },
+		// Fichiers & applis : réservé aux membres (fermé aux visiteurs).
+		rubriques: { films: true, filmsCommune: true, fichiers: !!m, planningUrl: config.planningUrl },
 		etatStatus: await etatGlobalRapide()
 	};
 };

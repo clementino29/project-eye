@@ -6,8 +6,20 @@ import { ouvertAuxVisiteurs } from '#lib/server/acces.ts';
 import { config } from '#lib/server/config.ts';
 import { membreParId } from '#lib/server/membres.ts';
 
+/** Taille maximale d'une requête, sauf l'envoi de fichiers (qui a sa propre limite).
+ *  Le formulaire d'un projet peut porter trois images de 10 Mo. */
+const CORPS_MAX = 40 * 1024 * 1024;
+
 export const handle: Handle = async ({ event, resolve }) => {
 	const chemin = event.url.pathname;
+
+	// BODY_SIZE_LIMIT est levé dans l'image Docker pour laisser passer les gros fichiers
+	// vers /fichiers/envoi : les autres requêtes gardent une limite raisonnable.
+	// Un corps envoyé « en morceaux » n'annonce pas sa taille : il est refusé, sauf pour l'envoi de fichiers.
+	if (chemin !== '/fichiers/envoi') {
+		if (event.request.headers.has('transfer-encoding')) return new Response('Taille de la requête requise', { status: 411 });
+		if (Number(event.request.headers.get('content-length')) > CORPS_MAX) return new Response('Requête trop grosse', { status: 413 });
+	}
 
 	// Retour d'Authentik : l'adresse déclarée dans Authentik depuis la v1 est gardée,
 	// et renvoyée vers la route de Better Auth.

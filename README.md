@@ -11,6 +11,7 @@ Hub privé du groupe : jeux en cours, parties, choix du jeu, panel serveur et st
 | **Jeux › Liste des jeux en cours** | Les jeux de la bande, empilés par série, avec statut et joueurs. |
 | **Jeux › Parties** | Parties au tour par tour : avancement, gagnant, journal des sessions. |
 | **Jeux › Quoi faire ?** | Jeux Steam en commun entre les présents, onglet « Presque », envies et roue pondérée. |
+| **Fichiers** | Jeux et projets avec leurs fichiers à installer (applis, mods, configs, liens), filtrés par plateforme, et leurs étapes d'installation. Réservé aux membres. |
 | **Panel** | Serveurs Sakura Panel (Pelican) : état, démarrer, arrêter, redémarrer, journal des actions. |
 | **Status** | État des services suivis par Uptime Kuma. |
 | **Compte** | Profil Authentik, photo, liaison Steam, clé Sakura Panel. Les admins y voient la liste des membres. |
@@ -66,6 +67,8 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 | `DATABASE_PATH` | Fichier SQLite (`/data/hub.db` dans Docker). |
 | `AUTHENTIK_ISSUER`, `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` | Fournisseur OpenID d'Authentik. |
 | `AUTHENTIK_MEMBER_GROUP`, `AUTHENTIK_ADMIN_GROUP` | Groupes qui donnent accès au hub (par défaut `hub-membres` et `hub-admins`). |
+| `AUTHENTIK_FILES_GROUP` | Groupe qui peut créer des projets et déposer des fichiers (par défaut `hub.files`). Les admins le peuvent toujours. |
+| `FICHIERS_PATH`, `FICHIERS_TAILLE_MAX` | Facultatives. Dossier des fichiers envoyés (par défaut `/data/fichiers` dans Docker) et taille maximale d'un fichier (par défaut `2G`). |
 | `STEAM_API_KEY` | Clé Steam Web API, pour les bibliothèques. |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | Facultatif. Application Twitch pour chercher les jeux sur IGDB (titre, série, image). |
 | `TMDB_API_KEY` | Clé TMDB (v3) ou jeton de lecture (v4), pour chercher les films et séries (Ma watchlist et Watch list commune). |
@@ -84,6 +87,9 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 
 Le pseudo, le nom, l'e-mail et le rôle viennent d'Authentik à chaque connexion ; la page Compte renvoie vers Authentik pour les modifier.
 Un compte sorti des deux groupes ne peut plus se connecter ; ses sessions ouvertes expirent au bout de 30 jours au plus.
+
+Pour « Fichiers & applis », crée aussi le groupe `hub.files` (ou celui de `AUTHENTIK_FILES_GROUP`) : ses membres peuvent créer des projets
+et déposer des fichiers. Le droit est lu à la connexion : après un ajout au groupe, il faut se déconnecter puis se reconnecter au hub.
 
 ### Sakura Panel (Pelican)
 
@@ -142,6 +148,14 @@ docker compose up -d --build
   </VirtualHost>
   ```
 
+  Pour les gros fichiers de « Fichiers & applis » (2 Go par défaut), ajoute aussi dans ce `VirtualHost` :
+
+  ```apache
+      # Apache refuse par défaut les envois de plus de 1 Go, et coupe les requêtes longues.
+      LimitRequestBody 0
+      ProxyTimeout 1800
+  ```
+
   `ProxyPreserveHost` et `X-Forwarded-Proto` sont nécessaires : sans eux, les formulaires du hub sont refusés (protection CSRF).
   Le même principe vaut pour nginx (`proxy_set_header Host $host;` et `proxy_set_header X-Forwarded-Proto $scheme;`).
 - **Si rien n'occupe les ports 80 et 443**, Caddy est fourni : renseigne `HUB_DOMAINE` puis
@@ -149,6 +163,8 @@ docker compose up -d --build
 - La base est dans le volume Docker `hub-data`. Le service `sauvegarde` en fait une copie chaque jour
   (`HEURE_SAUVEGARDE`, 4 h par défaut) dans `./sauvegardes`, compressée et gardée `JOURS_A_GARDER` jours (14 par défaut).
   Pour une copie tout de suite : `docker compose exec sauvegarde sauvegarde.sh`.
+- Les fichiers envoyés dans « Fichiers & applis » sont dans le même volume (`/data/fichiers`), mais pas dans la copie quotidienne,
+  qui ne garde que la base : ils peuvent peser plusieurs Go. Pour les copier : `docker compose cp hub:/data/fichiers ./fichiers-copie`.
 - Pour restaurer : arrêter le hub, décompresser la copie et la placer à la place de `/data/hub.db` dans le volume.
 - Mise à jour : `git pull && docker compose up -d --build`. Les migrations s'appliquent au démarrage.
   Avant d'en appliquer, le hub copie la base à côté d'elle (`/data/hub.db.avant-migration-<n>.bak` dans le volume).

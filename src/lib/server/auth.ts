@@ -67,7 +67,8 @@ export function profilVersMembre(profil: ProfilOidc) {
 		// Better Auth exige une adresse : sans e-mail chez Authentik, on en fabrique une qui ne sert à rien d'autre.
 		email: (email ?? `${sub}@authentik.invalid`).toLowerCase(),
 		emailVerified: profil.email_verified === true || profil.email_verified === 'true',
-		role: acces.autorise ? acces.role : undefined
+		role: acces.autorise ? acces.role : undefined,
+		deposeFichiers: Array.isArray(profil.groups) && profil.groups.map(String).includes(config.authentik.groupeFichiers)
 	};
 }
 
@@ -157,7 +158,8 @@ function creerAuth() {
 			additionalFields: {
 				authentikId: { type: 'string', required: false, input: true },
 				pseudo: { type: 'string', required: false, input: true },
-				role: { type: 'string', required: false, input: true }
+				role: { type: 'string', required: false, input: true },
+				deposeFichiers: { type: 'boolean', required: false, input: true }
 			},
 			// Refuse la connexion sans groupe du hub (nouveau membre comme ancien).
 			validateUserInfo: ({ user }) => {
