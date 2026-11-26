@@ -4,7 +4,7 @@ import { db, schema } from './db/index.ts';
 import type { Titre } from './db/schema.ts';
 import { saisonsDe, versVue, type VueTitre } from './films.ts';
 import { avancement, type Avancement, type StatutWl } from '../watchlist.ts';
-import { cleJour, VOTES_MAX } from '../commune.ts';
+import { cleJour } from '../commune.ts';
 import { tousLesMembres } from './membres.ts';
 
 export const aujourdhui = () => cleJour(new Date());
@@ -131,9 +131,9 @@ export function retirerCommune(titreId: number) {
 	});
 }
 
-export type ResultatVote = 'vote' | 'retire' | 'plus-de-votes' | 'deja-vu';
+export type ResultatVote = 'vote' | 'retire' | 'deja-vu';
 
-/** Vote (ou retire son vote) pour un titre ; 3 votes au plus parmi les titres pas encore vus. */
+/** Vote (ou retire son vote) pour un titre pas encore vu : sans limite, un vote dit « ça m'intéresse ». */
 export function basculerVote(moiId: number, titreId: number): ResultatVote {
 	const base = db();
 	return base.transaction((tx) => {
@@ -144,19 +144,12 @@ export function basculerVote(moiId: number, titreId: number): ResultatVote {
 			tx.delete(schema.votesTitre).where(condition).run();
 			return 'retire';
 		}
-		const utilises = tx
-			.select({ titreId: schema.votesTitre.titreId })
-			.from(schema.votesTitre)
-			.innerJoin(schema.listeCommune, eq(schema.votesTitre.titreId, schema.listeCommune.titreId))
-			.where(and(eq(schema.votesTitre.membreId, moiId), ne(schema.listeCommune.statut, 'vu')))
-			.all().length;
-		if (utilises >= VOTES_MAX) return 'plus-de-votes';
 		tx.insert(schema.votesTitre).values({ membreId: moiId, titreId }).run();
 		return 'vote';
 	});
 }
 
-/** Change le statut commun ; « Vu » libère les votes, et pour une série coche ou efface les épisodes. */
+/** Change le statut commun ; « Vu » efface les votes, et pour une série coche ou efface les épisodes. */
 export function definirStatutCommun(t: Titre, statut: StatutWl) {
 	const base = db();
 	base.transaction((tx) => {
@@ -305,7 +298,6 @@ export function ideesCommune(prenom: (id: number) => string, max = 8) {
 export function donneesCommune(moi: { id: number } | null) {
 	const membres = tousLesMembres({ visiteur: !moi });
 	const liste = lireCommune();
-	const votesUtilises = moi ? liste.filter((e) => e.statut !== 'vu' && e.votes.includes(moi.id)).length : 0;
 	return {
 		moiId: moi?.id ?? null,
 		membres: membres.map((m) => ({ id: m.id, nom: m.nom, photo: m.photo })),
@@ -313,7 +305,6 @@ export function donneesCommune(moi: { id: number } | null) {
 		lieux: ['En ligne', ...membres.map((m) => `Chez ${m.nom.split(' ')[0]}`)],
 		liste,
 		soirees: lireSoirees(),
-		aujourdhui: aujourdhui(),
-		votesUtilises
+		aujourdhui: aujourdhui()
 	};
 }

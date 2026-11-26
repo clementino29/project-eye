@@ -19,7 +19,7 @@ import {
 	soireeParId,
 	supprimerSoiree
 } from '#lib/server/commune.ts';
-import { estHeure, estJour, jourCourt, VOTES_MAX } from '#lib/commune.ts';
+import { estHeure, estJour, jourCourt } from '#lib/commune.ts';
 
 // Watch list commune : lisible sans connexion (prénoms seuls), modifiable par les membres.
 export const load = ({ locals }) => {
@@ -73,7 +73,6 @@ export const actions = {
 		const id = entier(f, 'titreId');
 		if (!id || !entreeCommune(id)) return fail(404, { erreur: 'Ce titre n’est pas dans la liste.' });
 		const r = basculerVote(moi.id, id);
-		if (r === 'plus-de-votes') return fail(400, { erreur: `Tu as déjà donné tes ${VOTES_MAX} votes. Retires-en un pour voter ici.` });
 		if (r === 'deja-vu') return fail(400, { erreur: 'Vous l’avez déjà vu ensemble.' });
 		return { ok: null, vote: r === 'vote' };
 	},

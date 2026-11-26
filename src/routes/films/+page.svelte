@@ -11,7 +11,7 @@
 	import ProgrammerSoiree from '#lib/components/films/ProgrammerSoiree.svelte';
 	import { envoyer } from '#lib/actions.ts';
 	import { artTitre } from '#lib/design/art.ts';
-	import { dateDe, heureLisible, jourCourt, jourLong, JOURS_COURTS, majuscule, pluriel, VOTES_MAX } from '#lib/commune.ts';
+	import { dateDe, heureLisible, jourCourt, jourLong, JOURS_COURTS, majuscule, pluriel } from '#lib/commune.ts';
 	import type { EntreeCommune, VueSoiree } from '#lib/server/commune.ts';
 	import type { TypeTitre } from '#lib/watchlist.ts';
 
@@ -46,7 +46,6 @@
 	const vus = $derived(data.liste.filter((e) => e.statut === 'vu').sort((a, b) => (b.finiLe ?? 0) - (a.finiLe ?? 0)));
 	const candidats = $derived(data.liste.filter((e) => e.statut !== 'vu'));
 	const suggestions = $derived(candidats.filter((e) => !prochaineDe(e.titre.id)).slice(0, 3));
-	const restants = $derived(VOTES_MAX - data.votesUtilises);
 
 	// Fond flou : le titre de la soirée affichée, sinon la première série en cours.
 	const vedette = $derived(heros ?? enCours[0] ?? null);
@@ -203,7 +202,7 @@
 			<div class="v-txt">
 				<h2 id="voir-titre">Il nous reste à voir · {aVoirTout.length}</h2>
 				<p class="v-votes">
-					{#if !connecte}Le plus voté passe à la prochaine soirée.{:else if restants <= 0}Tu as donné tes {VOTES_MAX} votes. Retire-en un pour en changer.{:else}Il te reste {pluriel(restants, 'vote')} sur {VOTES_MAX}. Le plus voté passe à la prochaine soirée.{/if}
+					{#if connecte}Vote pour tout ce qui te tente : les votes montrent combien de gens sont intéressés.{:else}Les votes montrent combien de gens sont intéressés.{/if}
 				</p>
 			</div>
 			<div class="nh-tabs" role="tablist" aria-label="Type">

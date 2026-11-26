@@ -63,20 +63,15 @@ describe('Watch list commune', () => {
 		expect(page().idees.map((i) => [i.titre.titre, i.source])).toEqual([['Aftersun', 'dans la watchlist de Tom']]);
 	});
 
-	it('limite chacun à 3 votes, et le plus voté passe en tête', async () => {
+	it('compte les votes sans limite, et le plus voté passe en tête', async () => {
 		const autres = [await titreLocal('Arcane', 'serie'), await titreLocal('Fallout', 'serie')];
 		await actions.voter(requete(lea, { titreId: duneId }));
 		await actions.voter(requete(tom, { titreId: duneId }));
-		await actions.voter(requete(lea, { titreId: autres[0] }));
-		await actions.voter(requete(lea, { titreId: autres[1] }));
-		const refus = (await actions.voter(requete(lea, { titreId: serieId }))) as { status: number; data: { erreur: string } };
-		expect(refus.status).toBe(400);
-		expect(refus.data.erreur).toContain('3 votes');
-		expect(page().votesUtilises).toBe(3);
+		for (const id of [...autres, serieId]) expect(await actions.voter(requete(lea, { titreId: id }))).toMatchObject({ vote: true });
+		expect(page().liste.filter((e) => e.votes.includes(lea.id))).toHaveLength(4);
 		expect(page().liste[0].titre.titre).toBe('Dune');
-		// Retirer un vote le rend.
+		// Revoter retire le vote.
 		expect(await actions.voter(requete(lea, { titreId: autres[1] }))).toMatchObject({ vote: false });
-		expect(await actions.voter(requete(lea, { titreId: serieId }))).toMatchObject({ vote: true });
 	});
 
 	it('programme une soirée, une seule par date, et gère « Je viens »', async () => {
@@ -139,7 +134,6 @@ describe('Watch list commune', () => {
 		expect(e.statut).toBe('vu');
 		expect(e.finiLe).toBeGreaterThan(0);
 		expect(e.votes).toEqual([]);
-		expect(page().votesUtilises).toBe(2);
 		expect(await actions.voter(requete(lea, { titreId: serieId }))).toMatchObject({ status: 400 });
 		// Repasser « À voir » efface les épisodes.
 		await actionsFiche.statut(requete(lea, { statut: 'avoir' }));
