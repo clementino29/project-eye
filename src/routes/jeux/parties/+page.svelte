@@ -10,7 +10,20 @@
 	import Dialog from '#lib/components/Dialog.svelte';
 	import { envoyer } from '#lib/actions.ts';
 	import { ORDRE_PARTIE, STATUTS_PARTIE as ST, type StatutPartie } from '#lib/libelles.ts';
-	import { dateCourte, dateLongue, derniereSession, journal, pourcentage, tourActuel, trierSessions } from '#lib/parties.ts';
+	import {
+		COULEURS_EQUIPE,
+		MAX_EQUIPES,
+		ORDRE_COULEURS,
+		dateCourte,
+		dateLongue,
+		derniereSession,
+		journal,
+		phraseVictoire,
+		pourcentage,
+		tourActuel,
+		trierSessions,
+		type CouleurEquipe
+	} from '#lib/parties.ts';
 
 	let { data } = $props();
 	type Partie = (typeof data.parties)[number];
@@ -26,7 +39,18 @@
 	let ouverte = $state<number | null>(null);
 	let menu = $state<number | null>(null);
 	let modale = $state<'nouvelle' | 'session' | number | null>(null);
-	let form = $state({ nom: '', jeu: '', toursMax: '', statut: 'en_cours' as StatutPartie, joueurs: [] as number[], gagnantId: null as number | null });
+	type EquipeForm = { cle: number; nom: string; couleur: CouleurEquipe; gagnante: boolean; membres: number[] };
+	let form = $state({
+		nom: '',
+		jeu: '',
+		toursMax: '',
+		statut: 'en_cours' as StatutPartie,
+		joueurs: [] as number[],
+		enEquipes: false,
+		equipes: [] as EquipeForm[],
+		gagnants: [] as number[]
+	});
+	let cleEquipe = 0;
 	let sform = $state({ partieId: 0, date: '', tour: '', note: '', min: 1, exemple: '' });
 	let envoi = $state(false);
 
@@ -87,16 +111,26 @@
 	});
 	const jeuxUtilises = $derived([...new Set(data.parties.map((p) => p.jeu))].sort((a, b) => a.localeCompare(b, 'fr')));
 	const partieSession = $derived(data.parties.find((p) => p.id === sform.partieId));
-	const peutEnregistrer = $derived(!!(form.nom.trim() && form.jeu.trim() && form.joueurs.length) && !envoi);
+	const sansEquipe = $derived(form.enEquipes ? form.joueurs.filter((id) => !form.equipes.some((e) => e.membres.includes(id))) : []);
+	const peutEnregistrer = $derived(!!(form.nom.trim() && form.jeu.trim() && form.joueurs.length) && !sansEquipe.length && !envoi);
 	const peutAjouterSession = $derived(!!sform.date && Number.parseInt(sform.tour, 10) >= sform.min && !envoi);
 
 	function ouvrirAjout() {
-		form = { nom: '', jeu: filtreJeu !== 'tous' ? filtreJeu : '', toursMax: '', statut: 'en_cours', joueurs: data.moi ? [data.moi.id] : [], gagnantId: null };
+		form = { nom: '', jeu: filtreJeu !== 'tous' ? filtreJeu : '', toursMax: '', statut: 'en_cours', joueurs: data.moi ? [data.moi.id] : [], enEquipes: false, equipes: [], gagnants: [] };
 		menu = null;
 		modale = 'nouvelle';
 	}
 	function ouvrirEdition(p: Partie) {
-		form = { nom: p.nom, jeu: p.jeu, toursMax: p.toursMax ? String(p.toursMax) : '', statut: p.statut, joueurs: [...p.joueurs], gagnantId: p.gagnantId };
+		form = {
+			nom: p.nom,
+			jeu: p.jeu,
+			toursMax: p.toursMax ? String(p.toursMax) : '',
+			statut: p.statut,
+			joueurs: [...p.joueurs],
+			enEquipes: p.equipes.length > 0,
+			equipes: p.equipes.map((e) => ({ cle: ++cleEquipe, nom: e.nom, couleur: e.couleur, gagnante: e.gagnante, membres: [...e.membres] })),
+			gagnants: [...p.gagnants]
+		};
 		menu = null;
 		modale = p.id;
 	}
@@ -108,8 +142,62 @@
 	function basculerJoueur(id: number) {
 		const on = form.joueurs.includes(id);
 		form.joueurs = on ? form.joueurs.filter((x) => x !== id) : [...form.joueurs, id];
-		if (on && form.gagnantId === id) form.gagnantId = null;
+		if (on) {
+			form.gagnants = form.gagnants.filter((x) => x !== id);
+			for (const e of form.equipes) e.membres = e.membres.filter((x) => x !== id);
+		} else if (form.enEquipes && form.equipes.length) {
+			// Un nouveau joueur rejoint l'équipe la moins nombreuse.
+			const petite = form.equipes.reduce((a, b) => (b.membres.length < a.membres.length ? b : a));
+			petite.membres = [...petite.membres, id];
+		}
 	}
+
+	// Équipes
+	const nouvelleEquipe = (couleur: CouleurEquipe): EquipeForm => ({
+		cle: ++cleEquipe,
+		nom: `Équipe ${COULEURS_EQUIPE[couleur].l.toLowerCase()}`,
+		couleur,
+		gagnante: false,
+		membres: []
+	});
+	const couleurLibre = () => ORDRE_COULEURS.find((c) => !form.equipes.some((e) => e.couleur === c)) ?? ORDRE_COULEURS[0];
+	function basculerEquipes() {
+		form.enEquipes = !form.enEquipes;
+		if (form.enEquipes && form.equipes.length < 2) {
+			// Deux équipes de départ, joueurs répartis en alternance.
+			form.equipes = [nouvelleEquipe('rouge'), nouvelleEquipe('bleu')];
+			form.joueurs.forEach((id, i) => form.equipes[i % 2].membres.push(id));
+		}
+	}
+	function ajouterEquipe() {
+		if (form.equipes.length < MAX_EQUIPES) form.equipes = [...form.equipes, nouvelleEquipe(couleurLibre())];
+	}
+	function retirerEquipe(cle: number) {
+		if (form.equipes.length <= 2) return;
+		const partante = form.equipes.find((e) => e.cle === cle);
+		form.equipes = form.equipes.filter((e) => e.cle !== cle);
+		if (partante?.membres.length) form.equipes[0].membres = [...form.equipes[0].membres, ...partante.membres];
+	}
+	/** Passe à la couleur suivante qui n'est pas déjà prise. */
+	function changerCouleur(e: EquipeForm) {
+		const prises = new Set(form.equipes.filter((x) => x !== e).map((x) => x.couleur));
+		const i = ORDRE_COULEURS.indexOf(e.couleur);
+		for (let k = 1; k <= ORDRE_COULEURS.length; k++) {
+			const c = ORDRE_COULEURS[(i + k) % ORDRE_COULEURS.length];
+			if (!prises.has(c)) {
+				const ancienDefaut = `Équipe ${COULEURS_EQUIPE[e.couleur].l.toLowerCase()}`;
+				if (e.nom === ancienDefaut) e.nom = `Équipe ${COULEURS_EQUIPE[c].l.toLowerCase()}`;
+				e.couleur = c;
+				return;
+			}
+		}
+	}
+	function placer(id: number, cle: number) {
+		for (const e of form.equipes) e.membres = e.cle === cle ? [...new Set([...e.membres, id])] : e.membres.filter((x) => x !== id);
+	}
+	const equipeDe = (id: number) => form.equipes.find((e) => e.membres.includes(id));
+	const basculerGagnant = (id: number) =>
+		(form.gagnants = form.gagnants.includes(id) ? form.gagnants.filter((x) => x !== id) : [...form.gagnants, id]);
 
 	async function enregistrer() {
 		if (!peutEnregistrer) return;
@@ -121,7 +209,8 @@
 			toursMax: form.toursMax,
 			statut: form.statut,
 			joueurs: form.joueurs,
-			gagnantId: form.statut === 'terminee' ? form.gagnantId : null
+			equipes: form.enEquipes ? JSON.stringify(form.equipes.map(({ nom, couleur, gagnante, membres }) => ({ nom, couleur, gagnante, membres }))) : '[]',
+			gagnants: form.statut === 'terminee' && !form.enEquipes ? form.gagnants : []
 		});
 		envoi = false;
 		if (r) {
@@ -245,8 +334,17 @@
 								</div>
 							</div>
 							<div class="c-avancement">{@render avancement(p, false)}</div>
-							{#if p.statut === 'terminee' && p.gagnantId}
-								<div class="victoire"><i class="icon-trophy" aria-hidden="true"></i>Victoire de {prenom(p.gagnantId)}</div>
+							{#if p.equipes.length}
+								<div class="equipes-carte">
+									{#each p.equipes as e (e.id)}
+										<span class="eq-puce" class:gagnante={p.statut === 'terminee' && e.gagnante} title="{e.nom} : {e.membres.map(prenom).join(', ') || 'personne'}">
+											<span class="eq-point" style:background={COULEURS_EQUIPE[e.couleur].c}></span>{e.nom}<span class="eq-nb">{e.membres.length}</span>
+										</span>
+									{/each}
+								</div>
+							{/if}
+							{#if p.statut === 'terminee' && phraseVictoire(p, prenom)}
+								<div class="victoire"><i class="icon-trophy" aria-hidden="true"></i>{phraseVictoire(p, prenom)}</div>
 							{/if}
 							<div class="c-pied">
 								<AvatarGroup personnes={personnes(p)} taille={24} />
@@ -274,16 +372,36 @@
 									</div>
 									<div class="bloc">
 										<span class="nh-overline">Joueurs</span>
-										<div class="joueurs">
-											{#each p.joueurs as id (id)}
-												{@const m = membre(id)}
-												<div class="joueur">
-													<Avatar nom={m?.nom ?? '?'} src={m?.photo} taille={28} />
-													<span class="j-nom">{m?.nom ?? 'Ancien membre'}</span>
-													{#if p.statut === 'terminee' && p.gagnantId === id}<span class="nh-badge nh-badge--accent"><i class="icon-trophy" style="font-size:12px" aria-hidden="true"></i>Gagnant</span>{/if}
-												</div>
-											{/each}
-										</div>
+										{#snippet ligneJoueur(id: number, gagne: boolean)}
+											{@const m = membre(id)}
+											<div class="joueur">
+												<Avatar nom={m?.nom ?? '?'} src={m?.photo} taille={28} />
+												<span class="j-nom">{m?.nom ?? 'Ancien membre'}</span>
+												{#if gagne}<span class="nh-badge nh-badge--accent"><i class="icon-trophy" style="font-size:12px" aria-hidden="true"></i>Gagnant</span>{/if}
+											</div>
+										{/snippet}
+										{#if p.equipes.length}
+											<div class="equipes-detail">
+												{#each p.equipes as e (e.id)}
+													{@const gagne = p.statut === 'terminee' && e.gagnante}
+													<div class="eq-bloc" style:--eq={COULEURS_EQUIPE[e.couleur].c}>
+														<div class="eq-tete">
+															<span class="eq-point"></span>
+															<span class="eq-nom">{e.nom}</span>
+															{#if gagne}<span class="nh-badge nh-badge--accent"><i class="icon-trophy" style="font-size:12px" aria-hidden="true"></i>Gagnante</span>{/if}
+														</div>
+														<div class="joueurs">
+															{#each e.membres as id (id)}{@render ligneJoueur(id, false)}{/each}
+															{#if !e.membres.length}<span class="sub">Personne</span>{/if}
+														</div>
+													</div>
+												{/each}
+											</div>
+										{:else}
+											<div class="joueurs">
+												{#each p.joueurs as id (id)}{@render ligneJoueur(id, p.statut === 'terminee' && p.gagnants.includes(id))}{/each}
+											</div>
+										{/if}
 									</div>
 								</div>
 								<div class="p-col" style="gap:var(--space-3)">
@@ -344,6 +462,41 @@
 					</div>
 				</div>
 				<div class="groupe">
+					<label class="nh-switch"><input type="checkbox" role="switch" checked={form.enEquipes} onchange={basculerEquipes} /><span class="nh-switch__track"></span>Jouer en équipes</label>
+					{#if form.enEquipes}
+						<div class="equipes-form">
+							{#each form.equipes as e, i (e.cle)}
+								<div class="eq-ligne">
+									<button type="button" class="eq-couleur" style:background={COULEURS_EQUIPE[e.couleur].c} aria-label="Couleur de l'équipe : {COULEURS_EQUIPE[e.couleur].l}. Changer de couleur" title="Changer de couleur" onclick={() => changerCouleur(e)}></button>
+									<div class="nh-input" style="flex:1;min-width:0"><input bind:value={e.nom} maxlength="40" aria-label="Nom de l'équipe {i + 1}" placeholder="Équipe {i + 1}" /></div>
+									<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Retirer {e.nom || `l'équipe ${i + 1}`}" title="Retirer l'équipe" disabled={form.equipes.length <= 2} onclick={() => retirerEquipe(e.cle)}><i class="icon-trash-2" aria-hidden="true"></i></button>
+								</div>
+							{/each}
+							{#if form.equipes.length < MAX_EQUIPES}
+								<button type="button" class="nh-btn nh-btn--ghost nh-btn--sm" style="align-self:flex-start" onclick={ajouterEquipe}><i class="icon-plus" aria-hidden="true"></i>Ajouter une équipe</button>
+							{/if}
+						</div>
+						{#if form.joueurs.length}
+							<span class="nh-field__label" style="margin-top:var(--space-2)">Répartition</span>
+							<div class="repartition">
+								{#each form.joueurs as id (id)}
+									{@const actuelle = equipeDe(id)}
+									<div class="rep-ligne" role="group" aria-label="Équipe de {prenom(id)}">
+										<span class="rep-nom">{prenom(id)}</span>
+										<div class="tags">
+											{#each form.equipes as e (e.cle)}
+												{@const on = actuelle?.cle === e.cle}
+												<button type="button" class="nh-tag nh-tag--clickable" class:nh-tag--selected={on} aria-pressed={on} onclick={() => placer(id, e.cle)}><span class="eq-point" style:background={COULEURS_EQUIPE[e.couleur].c}></span>{e.nom || 'Sans nom'}</button>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+							{#if sansEquipe.length}<div class="nh-field__hint" style="color:var(--warning-fg)">Place chaque joueur dans une équipe.</div>{/if}
+						{/if}
+					{/if}
+				</div>
+				<div class="groupe">
 					<span class="nh-field__label">Statut</span>
 					<div class="tags">
 						{#each ORDRE_PARTIE as k (k)}
@@ -353,13 +506,22 @@
 				</div>
 				{#if form.statut === 'terminee' && form.joueurs.length}
 					<div class="groupe">
-						<span class="nh-field__label">Qui a gagné</span>
+						<span class="nh-field__label">{form.enEquipes ? 'Quelle équipe a gagné' : 'Qui a gagné'}</span>
 						<div class="tags">
-							{#each form.joueurs as id (id)}
-								{@const on = form.gagnantId === id}
-								<button type="button" class="nh-tag nh-tag--clickable" class:nh-tag--selected={on} aria-pressed={on} onclick={() => (form.gagnantId = on ? null : id)}>{#if on}<i class="icon-trophy" aria-hidden="true"></i>{/if}{prenom(id)}</button>
-							{/each}
+							{#if form.enEquipes}
+								{#each form.equipes as e (e.cle)}
+									<button type="button" class="nh-tag nh-tag--clickable" class:nh-tag--selected={e.gagnante} aria-pressed={e.gagnante} onclick={() => (e.gagnante = !e.gagnante)}>
+										{#if e.gagnante}<i class="icon-trophy" aria-hidden="true"></i>{:else}<span class="eq-point" style:background={COULEURS_EQUIPE[e.couleur].c}></span>{/if}{e.nom || 'Équipe sans nom'}
+									</button>
+								{/each}
+							{:else}
+								{#each form.joueurs as id (id)}
+									{@const on = form.gagnants.includes(id)}
+									<button type="button" class="nh-tag nh-tag--clickable" class:nh-tag--selected={on} aria-pressed={on} onclick={() => basculerGagnant(id)}>{#if on}<i class="icon-trophy" aria-hidden="true"></i>{/if}{prenom(id)}</button>
+								{/each}
+							{/if}
 						</div>
+						<div class="nh-field__hint">Plusieurs choix possibles en cas d'égalité.</div>
 					</div>
 				{/if}
 			</div>
@@ -745,6 +907,103 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
+	}
+	/* Équipes */
+	.eq-point {
+		flex: none;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--eq, var(--fg-3));
+	}
+	.equipes-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+	.eq-ligne {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.eq-couleur {
+		flex: none;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 2px solid rgba(255, 255, 255, 0.85);
+		cursor: pointer;
+		box-shadow: var(--shadow-1);
+	}
+	.eq-couleur:focus-visible {
+		outline: none;
+		box-shadow: var(--ring-focus);
+	}
+	.repartition {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.rep-ligne {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2) var(--space-3);
+	}
+	.rep-nom {
+		flex: 0 0 96px;
+		font: var(--type-label);
+		color: var(--fg-1);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.equipes-carte {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.eq-puce {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 24px;
+		padding: 0 8px;
+		border-radius: var(--radius-pill);
+		background: var(--surface-2);
+		border: 1px solid var(--border-subtle);
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--fg-1);
+	}
+	.eq-puce.gagnante {
+		border-color: var(--apricot-300);
+	}
+	.eq-nb {
+		color: var(--fg-3);
+		font-weight: 500;
+	}
+	.equipes-detail {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+	.eq-bloc {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-left: var(--space-3);
+		border-left: 3px solid var(--eq);
+	}
+	.eq-tete {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.eq-nom {
+		font: var(--type-label);
+		color: var(--fg-1);
 	}
 	.pied {
 		display: flex;
