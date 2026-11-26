@@ -140,7 +140,7 @@
 	}
 </script>
 
-<svelte:head><title>Mon compte · nohriancons</title></svelte:head>
+<svelte:head><title>Mon compte · Nohriancons</title></svelte:head>
 <svelte:document onpointerdown={clicDocument} />
 
 <input type="file" accept="image/png,image/jpeg,image/webp" bind:this={champFichier} onchange={choisirFichier} hidden />

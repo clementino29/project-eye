@@ -1,8 +1,13 @@
+import { config } from '#lib/server/config.ts';
+import { etatGlobalRapide } from '#lib/server/kuma.ts';
 import { urlPhoto } from '#lib/server/membres.ts';
 
-export const load = ({ locals }) => {
+export const load = async ({ locals }) => {
 	const m = locals.membre;
 	return {
-		moi: m ? { id: m.id, nom: m.nom, pseudo: m.pseudo, photo: urlPhoto(m), role: m.role } : null
+		moi: m ? { id: m.id, nom: m.nom, pseudo: m.pseudo, photo: urlPhoto(m), role: m.role } : null,
+		// Films & séries et Fichiers apparaîtront dans le menu quand leurs pages seront livrées.
+		rubriques: { films: false, fichiers: false, planningUrl: config.planningUrl },
+		etatStatus: await etatGlobalRapide()
 	};
 };

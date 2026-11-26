@@ -1,28 +1,77 @@
 <script lang="ts">
-	// Barre de navigation du prototype : Accueil, Jeux (menu de trois pages), Panel, Status, Compte.
+	// Barre de navigation du prototype : Accueil, Jeux (trois pages), Films & séries (deux pages),
+	// Fichiers, Panel, Status, Planning (lien externe) et Compte.
 	// Bureau ≥ 820 px, tablette 560–819 px (menu « Plus »), mobile < 560 px (menu burger).
 	import Avatar from './Avatar.svelte';
+	import type { EtatGlobal } from '#lib/libelles.ts';
 
-	type Cle = 'accueil' | 'jeux-en-cours' | 'parties' | 'quoi-faire' | 'panel' | 'status' | 'compte' | null;
+	export type Cle =
+		| 'accueil'
+		| 'jeux-en-cours'
+		| 'parties'
+		| 'quoi-faire'
+		| 'films'
+		| 'watchlist'
+		| 'fichiers'
+		| 'panel'
+		| 'status'
+		| 'compte'
+		| null;
+	export interface Rubriques {
+		/** Menu Films & séries (pages livrées avec la watchlist). */
+		films: boolean;
+		fichiers: boolean;
+		planningUrl: string | null;
+	}
+	interface Lien {
+		cle: string;
+		libelle: string;
+		icone: string;
+		href: string;
+		externe?: boolean;
+	}
 	let {
 		actif,
-		membre
-	}: { actif: Cle; membre: { nom: string; pseudo: string; photo: string | null } | null } = $props();
+		membre,
+		rubriques,
+		etatStatus = null
+	}: {
+		actif: Cle;
+		membre: { nom: string; pseudo: string; photo: string | null } | null;
+		rubriques: Rubriques;
+		etatStatus?: EtatGlobal | null;
+	} = $props();
 
-	const JEUX = [
+	const JEUX: Lien[] = [
 		{ cle: 'jeux-en-cours', libelle: 'Liste des jeux en cours', icone: 'list', href: '/jeux/liste' },
 		{ cle: 'parties', libelle: 'Parties', icone: 'dices', href: '/jeux/parties' },
 		{ cle: 'quoi-faire', libelle: 'Quoi faire ?', icone: 'lightbulb', href: '/jeux/quoi-faire' }
-	] as const;
-	const SECTIONS = [
+	];
+	const FILMS: Lien[] = [
+		{ cle: 'films', libelle: 'Watch list commune', icone: 'popcorn', href: '/films' },
+		{ cle: 'watchlist', libelle: 'Ma watchlist', icone: 'list-video', href: '/films/ma-watchlist' }
+	];
+	const SECTIONS = $derived<Lien[]>([
+		...(rubriques.fichiers ? [{ cle: 'fichiers', libelle: 'Fichiers', icone: 'folder-down', href: '/fichiers' }] : []),
 		{ cle: 'panel', libelle: 'Panel', icone: 'layout-dashboard', href: '/panel' },
-		{ cle: 'status', libelle: 'Status', icone: 'activity', href: '/status' }
-	] as const;
+		{ cle: 'status', libelle: 'Status', icone: 'activity', href: '/status' },
+		...(rubriques.planningUrl
+			? [{ cle: 'planning', libelle: 'Planning', icone: 'calendar-days', href: rubriques.planningUrl, externe: true }]
+			: [])
+	]);
+	/** Pastille d'état sur le lien Status (lue dans Uptime Kuma). */
+	const PASTILLES: Record<EtatGlobal, { c: string; l: string }> = {
+		ok: { c: '#2fe39a', l: 'tout fonctionne' },
+		degrade: { c: '#ffb21e', l: 'un service est ralenti' },
+		panne: { c: '#ff5468', l: 'panne en cours' }
+	};
+	const pastille = $derived(etatStatus ? PASTILLES[etatStatus] : null);
 
-	let menu = $state<'jeux' | 'plus' | 'compte' | 'burger' | null>(null);
+	let menu = $state<'jeux' | 'films' | 'plus' | 'compte' | 'burger' | null>(null);
 	let racine: HTMLElement | undefined = $state();
 
 	const jeuxActif = $derived(JEUX.some((j) => j.cle === actif));
+	const filmsActif = $derived(FILMS.some((j) => j.cle === actif));
 	const plusActif = $derived(SECTIONS.some((s) => s.cle === actif));
 	const prenom = $derived(membre?.nom.split(' ')[0] ?? '');
 
@@ -40,11 +89,50 @@
 
 <svelte:document onpointerdown={clicDocument} onkeydown={touche} />
 
+{#snippet contenu(l: Lien)}
+	<i class="icon-{l.icone} ico" aria-hidden="true"></i>{l.libelle}
+	{#if l.cle === 'status' && pastille}
+		<span class="pastille" style:background={pastille.c} title="Status : {pastille.l}"></span><span class="sr">({pastille.l})</span>
+	{/if}
+	{#if l.externe}
+		<i class="icon-arrow-up-right ext" aria-hidden="true"></i><span class="sr">(s’ouvre dans un nouvel onglet)</span>
+	{/if}
+{/snippet}
+
+{#snippet menuFilms(position: string)}
+	<div class="pos">
+		<button
+			type="button"
+			class="lien"
+			class:actif={filmsActif}
+			class:ouvert={menu === 'films'}
+			aria-haspopup="menu"
+			aria-expanded={menu === 'films'}
+			aria-controls="hdr-films"
+			onclick={() => basculer('films')}
+		>
+			<i class="icon-clapperboard ico" aria-hidden="true"></i>Films &amp; séries<i
+				class="icon-chevron-{menu === 'films' ? 'up' : 'down'} chev"
+				aria-hidden="true"
+			></i>
+		</button>
+		{#if menu === 'films'}
+			<div id="hdr-films" role="menu" class="deroulant" style="{position}:0;width:240px">
+				{#each FILMS as f (f.cle)}
+					<a role="menuitem" href={f.href} class:actif={actif === f.cle} aria-current={actif === f.cle ? 'page' : undefined} onclick={fermer}>
+						{@render contenu(f)}
+					</a>
+				{/each}
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
 <header bind:this={racine} class="hdr">
 	<div class="barre">
-		<a href="/" class="marque" aria-label="nohriancons – Accueil" onclick={fermer}>
-			<img src="/favicon.svg" alt="" width="32" height="32" class="logo" />
-			<span class="nom">nohriancons<span class="point">.</span></span>
+		<a href="/" class="marque" aria-label="Nohriancons – Accueil" onclick={fermer}>
+			<img src="/images/logo-nhr.png" alt="" width="36" height="42" class="logo" />
+			<span class="nom">Nohriancons</span>
 		</a>
 
 		<nav aria-label="Rubriques" class="nav-large">
@@ -77,9 +165,17 @@
 					</div>
 				{/if}
 			</div>
+			{#if rubriques.films}{@render menuFilms('left')}{/if}
 			{#each SECTIONS as s (s.cle)}
-				<a href={s.href} class="lien seul-bureau" class:actif={actif === s.cle} aria-current={actif === s.cle ? 'page' : undefined}>
-					<i class="icon-{s.icone} ico" aria-hidden="true"></i>{s.libelle}
+				<a
+					href={s.href}
+					class="lien seul-bureau"
+					class:actif={actif === s.cle}
+					aria-current={actif === s.cle ? 'page' : undefined}
+					target={s.externe ? '_blank' : undefined}
+					rel={s.externe ? 'noopener noreferrer' : undefined}
+				>
+					{@render contenu(s)}
 				</a>
 			{/each}
 			<div class="pos seul-tablette">
@@ -96,10 +192,17 @@
 					<i class="icon-ellipsis ico" aria-hidden="true"></i>Plus<i class="icon-chevron-{menu === 'plus' ? 'up' : 'down'} chev" aria-hidden="true"></i>
 				</button>
 				{#if menu === 'plus'}
-					<div id="hdr-plus" role="menu" class="deroulant" style="right:0;width:180px">
+					<div id="hdr-plus" role="menu" class="deroulant" style="right:0;width:200px">
 						{#each SECTIONS as s (s.cle)}
-							<a role="menuitem" href={s.href} class:actif={actif === s.cle} onclick={fermer}>
-								<i class="icon-{s.icone} ico" aria-hidden="true"></i>{s.libelle}
+							<a
+								role="menuitem"
+								href={s.href}
+								class:actif={actif === s.cle}
+								target={s.externe ? '_blank' : undefined}
+								rel={s.externe ? 'noopener noreferrer' : undefined}
+								onclick={fermer}
+							>
+								{@render contenu(s)}
 							</a>
 						{/each}
 					</div>
@@ -170,8 +273,22 @@
 						<a href={j.href} class:actif={actif === j.cle} onclick={fermer}><i class="icon-{j.icone} ico" aria-hidden="true"></i>{j.libelle}</a>
 					{/each}
 				</div>
+				{#if rubriques.films}
+					<div class="m-titre" class:actif={filmsActif}><i class="icon-clapperboard ico" aria-hidden="true"></i>Films &amp; séries</div>
+					<div role="group" aria-label="Films et séries" class="m-groupe">
+						{#each FILMS as f (f.cle)}
+							<a href={f.href} class:actif={actif === f.cle} onclick={fermer}>{@render contenu(f)}</a>
+						{/each}
+					</div>
+				{/if}
 				{#each SECTIONS as s (s.cle)}
-					<a href={s.href} class:actif={actif === s.cle} onclick={fermer}><i class="icon-{s.icone} ico" aria-hidden="true"></i>{s.libelle}</a>
+					<a
+						href={s.href}
+						class:actif={actif === s.cle}
+						target={s.externe ? '_blank' : undefined}
+						rel={s.externe ? 'noopener noreferrer' : undefined}
+						onclick={fermer}>{@render contenu(s)}</a
+					>
 				{/each}
 			</nav>
 			{#if membre}
@@ -217,18 +334,39 @@
 		min-width: 0;
 	}
 	.logo {
-		border-radius: 10px;
+		width: 36px;
+		height: 42px;
 		flex: none;
+		object-fit: contain;
+		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
 	}
 	.nom {
-		font-weight: 700;
-		font-size: 18px;
-		letter-spacing: -0.02em;
+		font-weight: 400;
+		font-size: 20px;
+		letter-spacing: -0.01em;
 		color: var(--fg-1);
 		white-space: nowrap;
 	}
-	.point {
-		color: var(--apricot-300);
+	.pastille {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex: none;
+		margin-left: -2px;
+		box-shadow: 0 0 0 2px var(--bg-page);
+	}
+	.ext {
+		font-size: 14px;
+		color: var(--fg-3);
+		margin-left: -2px;
+	}
+	.sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 	nav.nav-large {
 		display: flex;
