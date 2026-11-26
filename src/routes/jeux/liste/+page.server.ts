@@ -23,6 +23,7 @@ export const load = ({ locals }) => {
 			image: j.image ?? '',
 			statut: j.statut,
 			igdbId: j.igdbId,
+			steamAppId: j.steamAppId,
 			ajouteLe: j.ajouteLe,
 			joueurs: joueurs.filter((x) => x.jeuId === j.id).map((x) => x.membreId)
 		}));
@@ -37,7 +38,8 @@ function lireJeu(f: FormData) {
 		serie: texte(f, 'serie', 80) || null,
 		image: urlImage(texte(f, 'image', 500)),
 		statut: parmi(texte(f, 'statut'), ORDRE_JEU) ?? 'a_faire',
-		igdbId: entier(f, 'igdbId')
+		igdbId: entier(f, 'igdbId'),
+		steamAppId: entier(f, 'steamAppId')
 	};
 }
 

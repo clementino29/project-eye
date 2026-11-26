@@ -23,7 +23,8 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DATABASE_PATH=/data/hub.db \
     MIGRATIONS_PATH=/app/drizzle \
-    BODY_SIZE_LIMIT=Infinity
+    BODY_SIZE_LIMIT=Infinity \
+    TZ=Europe/Paris
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY drizzle ./drizzle

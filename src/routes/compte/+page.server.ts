@@ -3,7 +3,9 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { config } from '#lib/server/config.ts';
 import { chiffrer, dechiffrer } from '#lib/server/crypto.ts';
 import { db, schema } from '#lib/server/db/index.ts';
-import { exigerMembre } from '#lib/server/garde.ts';
+import { exigerAdmin, exigerMembre } from '#lib/server/garde.ts';
+import { annoncer } from '#lib/server/discord.ts';
+import { derniersPassages } from '#lib/server/taches.ts';
 import { urlPhoto } from '#lib/server/membres.ts';
 import { ClientPelican, ErreurPelican, masquerCle } from '#lib/server/pelican.ts';
 import { ClientSteam, ErreurSteam, completerFiches, lireEntreeSteam, synchroniserMembre } from '#lib/server/steam.ts';
@@ -69,13 +71,32 @@ export const load = ({ locals }) => {
 			ajouteeLe: m.clePelicanAjouteeLe,
 			urlCles: config.pelican.urlClesApi ?? null
 		},
-		membres
+		membres,
+		// Automatisations (admins) : dernier passage des tâches planifiées et état du webhook Discord.
+		automatisations:
+			m.role === 'admin'
+				? {
+						discord: !!config.discord.webhook,
+						heureSteam: config.taches.heureSteam,
+						heureAnnonces: config.taches.heureAnnonces,
+						passages: Object.fromEntries(derniersPassages().map((t) => [t.nom, { quand: t.derniereExecution, resultat: t.resultat }]))
+					}
+				: null
 	};
 };
 
 const PHOTO = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 
 export const actions = {
+	/** Envoie un message de test sur Discord, pour vérifier le webhook. */
+	testerDiscord: async ({ locals }) => {
+		exigerAdmin(locals);
+		if (!config.discord.webhook) return fail(400, { action: 'testerDiscord', erreur: 'DISCORD_WEBHOOK_URL n’est pas réglée (ou n’est pas une adresse de webhook Discord).' });
+		const n = await annoncer({ titre: '👋 Test du hub', texte: 'Les annonces de Nohriancons arriveront ici : serveur démarré, soirée ou session prévue le lendemain.', lien: '/' });
+		if (!n) return fail(502, { action: 'testerDiscord', erreur: 'Discord a refusé le message. Vérifie l’adresse du webhook.' });
+		return { action: 'testerDiscord', ok: 'Message envoyé sur Discord' };
+	},
+
 	photo: async ({ request, locals }) => {
 		const m = exigerMembre(locals);
 		const photo = String((await request.formData()).get('photo') ?? '');
