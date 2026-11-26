@@ -1,5 +1,6 @@
 <script lang="ts">
 	// « Parties » : cartes groupées par jeu, panneau de détail avec le journal des sessions.
+	import { page } from '$app/state';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import AvatarGroup from '#lib/components/AvatarGroup.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
@@ -14,7 +15,10 @@
 	let recherche = $state('');
 	let filtreJeu = $state('tous');
 	let filtreStatut = $state<'tous' | StatutPartie>('tous');
-	let edition = $state(true);
+	// Un visiteur non connecté reste en lecture seule (les actions sont aussi refusées côté serveur).
+	const connecte = $derived(!!data.moi);
+	let modeEdition = $state(true);
+	const edition = $derived(connecte && modeEdition);
 	let ouverte = $state<number | null>(null);
 	let menu = $state<number | null>(null);
 	let modale = $state<'nouvelle' | 'session' | number | null>(null);
@@ -159,8 +163,12 @@
 				</div>
 			</div>
 			<div class="boutons">
-				<button type="button" class="nh-btn nh-btn--ghost" onclick={() => { edition = !edition; menu = null; }}><i class="icon-{edition ? 'eye' : 'pencil'}" aria-hidden="true"></i>{edition ? 'Mode lecture' : 'Modifier'}</button>
-				{#if edition}<button type="button" class="nh-btn nh-btn--primary" onclick={ouvrirAjout}><i class="icon-plus" aria-hidden="true"></i>Nouvelle partie</button>{/if}
+				{#if connecte}
+					<button type="button" class="nh-btn nh-btn--ghost" onclick={() => { modeEdition = !modeEdition; menu = null; }}><i class="icon-{edition ? 'eye' : 'pencil'}" aria-hidden="true"></i>{edition ? 'Mode lecture' : 'Modifier'}</button>
+					{#if edition}<button type="button" class="nh-btn nh-btn--primary" onclick={ouvrirAjout}><i class="icon-plus" aria-hidden="true"></i>Nouvelle partie</button>{/if}
+				{:else}
+					<a href="/connexion?retour={encodeURIComponent(page.url.pathname)}" class="nh-btn nh-btn--outline"><i class="icon-log-in" aria-hidden="true"></i>Se connecter pour modifier</a>
+				{/if}
 			</div>
 		</div>
 		<div class="filtres">

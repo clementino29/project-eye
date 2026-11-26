@@ -40,11 +40,18 @@ export function versPublic(m: Membre): MembrePublic {
 	return { id: m.id, pseudo: m.pseudo, nom: m.nom, photo: urlPhoto(m), etatSteam: m.etatSteam };
 }
 
-export function tousLesMembres(): MembrePublic[] {
+/** Pour un visiteur non connecté : le prénom seul, sans pseudo ni nom de famille. */
+export function versVisiteur(m: Membre): MembrePublic {
+	const prenom = m.nom.trim().split(/\s+/)[0] || 'Membre';
+	return { id: m.id, pseudo: prenom.toLowerCase(), nom: prenom, photo: urlPhoto(m), etatSteam: m.etatSteam };
+}
+
+/** Membres affichés sur une page ; `visiteur` réduit chacun à son prénom (mode lecture seule). */
+export function tousLesMembres({ visiteur = false } = {}): MembrePublic[] {
 	return db()
 		.select()
 		.from(schema.membres)
 		.orderBy(schema.membres.pseudo)
 		.all()
-		.map(versPublic);
+		.map(visiteur ? versVisiteur : versPublic);
 }

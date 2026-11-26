@@ -2,11 +2,9 @@ import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 import { dev } from '$app/env';
 import { auth, COOKIE_DEV, FOURNISSEUR } from '#lib/server/auth.ts';
+import { ouvertAuxVisiteurs } from '#lib/server/acces.ts';
 import { config } from '#lib/server/config.ts';
 import { membreParId } from '#lib/server/membres.ts';
-
-/** Pages visibles sans être connecté. */
-const PUBLIQUES = [/^\/$/, /^\/connexion(\/|$)/, /^\/sante$/];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const chemin = event.url.pathname;
@@ -27,7 +25,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		if (id) event.locals.membre = membreParId(id) ?? null;
 	}
 
-	if (!event.locals.membre && !PUBLIQUES.some((r) => r.test(chemin))) {
+	if (!event.locals.membre && !ouvertAuxVisiteurs(event.request.method, chemin)) {
 		if (event.request.method !== 'GET') {
 			return new Response('Connexion requise', { status: 401 });
 		}

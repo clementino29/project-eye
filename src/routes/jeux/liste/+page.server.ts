@@ -1,14 +1,15 @@
 import { fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { db, schema } from '#lib/server/db/index.ts';
-import { exigerMembre } from '#lib/server/garde.ts';
+import { exigerMembre, lecteur } from '#lib/server/garde.ts';
 import { tousLesMembres } from '#lib/server/membres.ts';
 import { config } from '#lib/server/config.ts';
 import { entier, ids, parmi, texte, urlImage } from '#lib/server/formulaires.ts';
 import { ORDRE_JEU } from '#lib/libelles.ts';
 
+// Lisible sans connexion (lecture seule) ; toutes les actions demandent un membre.
 export const load = ({ locals }) => {
-	exigerMembre(locals);
+	const moi = lecteur(locals);
 	const base = db();
 	const joueurs = base.select().from(schema.joueursJeu).all();
 	const jeux = base
@@ -25,7 +26,7 @@ export const load = ({ locals }) => {
 			ajouteLe: j.ajouteLe,
 			joueurs: joueurs.filter((x) => x.jeuId === j.id).map((x) => x.membreId)
 		}));
-	return { jeux, membres: tousLesMembres(), igdbActif: config.igdb.configure };
+	return { jeux, membres: tousLesMembres({ visiteur: !moi }), igdbActif: !!moi && config.igdb.configure };
 };
 
 function lireJeu(f: FormData) {

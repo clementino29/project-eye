@@ -2,14 +2,15 @@ import { fail } from '@sveltejs/kit';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '#lib/server/db/index.ts';
 import { config } from '#lib/server/config.ts';
-import { exigerMembre } from '#lib/server/garde.ts';
+import { exigerMembre, lecteur } from '#lib/server/garde.ts';
 import { tousLesMembres } from '#lib/server/membres.ts';
 import { entier, ids, parmi, texte } from '#lib/server/formulaires.ts';
 import { completerFiches, synchroniserTout } from '#lib/server/steam.ts';
 import type { JeuCommun } from '#lib/quoi-faire.ts';
 
+// Lisible sans connexion : les jeux en commun seulement (ni envies ni tirage pour un visiteur).
 export const load = ({ locals }) => {
-	exigerMembre(locals);
+	const moi = lecteur(locals);
 	const base = db();
 
 	// Jeux possédés par au moins deux membres : les seuls qui peuvent être « en commun ».
@@ -45,14 +46,16 @@ export const load = ({ locals }) => {
 		.sort((a, b) => b.proprietaires.length - a.proprietaires.length || a.nom.localeCompare(b.nom, 'fr'));
 
 	const envies: Record<number, number[]> = {};
-	for (const e of base.select().from(schema.envies).all()) (envies[e.steamAppId] ??= []).push(e.membreId);
+	if (moi) for (const e of base.select().from(schema.envies).all()) (envies[e.steamAppId] ??= []).push(e.membreId);
 
-	const dernier = base
-		.select({ appid: schema.tirages.steamAppIdTire, date: schema.tirages.date })
-		.from(schema.tirages)
-		.where(eq(schema.tirages.valide, true))
-		.orderBy(desc(schema.tirages.date))
-		.get();
+	const dernier = moi
+		? base
+				.select({ appid: schema.tirages.steamAppIdTire, date: schema.tirages.date })
+				.from(schema.tirages)
+				.where(eq(schema.tirages.valide, true))
+				.orderBy(desc(schema.tirages.date))
+				.get()
+		: undefined;
 
 	const derniereSync = base
 		.select({ t: sql<number | null>`max(${schema.membres.derniereSyncSteam})` })
@@ -61,10 +64,10 @@ export const load = ({ locals }) => {
 
 	const ficheManquantes = fiches.filter((f) => !f.detailsLe).length;
 	// Lit en arrière-plan les fiches Steam qui manquent (mode, multijoueur, genres).
-	if (ficheManquantes && config.steam.cleApi) void completerFiches();
+	if (moi && ficheManquantes && config.steam.cleApi) void completerFiches();
 
 	return {
-		membres: tousLesMembres(),
+		membres: tousLesMembres({ visiteur: !moi }),
 		jeux,
 		envies,
 		dernier: dernier ? { nom: fiches.find((f) => f.steamAppId === dernier.appid)?.nom ?? `Jeu ${dernier.appid}`, date: dernier.date } : null,

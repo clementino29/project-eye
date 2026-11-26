@@ -53,7 +53,8 @@
 	];
 	const SECTIONS = $derived<Lien[]>([
 		...(rubriques.fichiers ? [{ cle: 'fichiers', libelle: 'Fichiers', icone: 'folder-down', href: '/fichiers' }] : []),
-		{ cle: 'panel', libelle: 'Panel', icone: 'layout-dashboard', href: '/panel' },
+		// Le Panel reste fermé aux visiteurs (mode lecture seule).
+		...(membre ? [{ cle: 'panel', libelle: 'Panel', icone: 'layout-dashboard', href: '/panel' }] : []),
 		{ cle: 'status', libelle: 'Status', icone: 'activity', href: '/status' },
 		...(rubriques.planningUrl
 			? [{ cle: 'planning', libelle: 'Planning', icone: 'calendar-days', href: rubriques.planningUrl, externe: true }]

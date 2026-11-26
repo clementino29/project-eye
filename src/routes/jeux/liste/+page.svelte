@@ -1,5 +1,6 @@
 <script lang="ts">
 	// « Liste des jeux en cours » : cartes par jeu, piles par série, statut modifiable d'un clic.
+	import { page } from '$app/state';
 	import AvatarGroup from '#lib/components/AvatarGroup.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import { envoyer } from '#lib/actions.ts';
@@ -20,7 +21,10 @@
 	let filtreStatut = $state<'tous' | StatutJeu>('tous');
 	let tri = $state<'progression' | 'recent' | 'titre'>('progression');
 	let parSerie = $state(true);
-	let edition = $state(true);
+	// Un visiteur non connecté reste en lecture seule (les actions sont aussi refusées côté serveur).
+	const connecte = $derived(!!data.moi);
+	let modeEdition = $state(true);
+	const edition = $derived(connecte && modeEdition);
 	let ouverte = $state<string | null>(null);
 	let menu = $state<number | null>(null);
 	let modale = $state<'nouveau' | number | null>(null);
@@ -201,8 +205,12 @@
 				</div>
 			</div>
 			<div class="boutons">
-				<button type="button" class="nh-btn nh-btn--ghost" onclick={() => { edition = !edition; menu = null; }}><i class="icon-{edition ? 'eye' : 'pencil'}" aria-hidden="true"></i>{edition ? 'Mode lecture' : 'Modifier'}</button>
-				{#if edition}<button type="button" class="nh-btn nh-btn--primary" onclick={ouvrirAjout}><i class="icon-plus" aria-hidden="true"></i>Ajouter un jeu</button>{/if}
+				{#if connecte}
+					<button type="button" class="nh-btn nh-btn--ghost" onclick={() => { modeEdition = !modeEdition; menu = null; }}><i class="icon-{edition ? 'eye' : 'pencil'}" aria-hidden="true"></i>{edition ? 'Mode lecture' : 'Modifier'}</button>
+					{#if edition}<button type="button" class="nh-btn nh-btn--primary" onclick={ouvrirAjout}><i class="icon-plus" aria-hidden="true"></i>Ajouter un jeu</button>{/if}
+				{:else}
+					<a href="/connexion?retour={encodeURIComponent(page.url.pathname)}" class="nh-btn nh-btn--outline"><i class="icon-log-in" aria-hidden="true"></i>Se connecter pour modifier</a>
+				{/if}
 			</div>
 		</div>
 		<div class="filtres">

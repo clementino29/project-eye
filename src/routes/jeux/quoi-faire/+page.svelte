@@ -24,6 +24,8 @@
 	} from '#lib/quoi-faire.ts';
 
 	let { data } = $props();
+	// Un visiteur non connecté voit les jeux en commun, sans envies, tirage ni correction de fiche.
+	const connecte = $derived(!!data.moi);
 
 	const DUREE = 5; // secondes de rotation
 	const PONDERE = true; // plus d'envies = plus grosse part
@@ -44,7 +46,7 @@
 	let presents = $state<number[]>(
 		depuisUrl.joueurs.length ? depuisUrl.joueurs : untrack(() => data.membres.filter((m) => m.etatSteam !== 'non_liee').map((m) => m.id))
 	);
-	let onglet = $state<'commun' | 'tirage'>(depuisUrl.onglet as 'commun' | 'tirage');
+	let onglet = $state<'commun' | 'tirage'>(untrack(() => (data.moi ? depuisUrl.onglet : 'commun')) as 'commun' | 'tirage');
 	let sous = $state<'tous' | 'presque'>('tous');
 	let multi = $state(true);
 	let places = $state(true);
@@ -181,7 +183,7 @@
 			{j.nom}
 			<img src={imageSteam(j.id)} alt="" loading="lazy" onerror={masquer} />
 			{#if j.gratuit}<span class="coin"><span class="nh-badge nh-badge--success">Gratuit</span></span>{/if}
-			<button type="button" class="nh-btn nh-iconbtn nh-btn--secondary nh-btn--sm corriger" aria-label="Corriger la fiche de {j.nom}" title="Corriger la fiche" onclick={() => ouvrirFiche(j)}><i class="icon-pencil" aria-hidden="true"></i></button>
+			{#if connecte}<button type="button" class="nh-btn nh-iconbtn nh-btn--secondary nh-btn--sm corriger" aria-label="Corriger la fiche de {j.nom}" title="Corriger la fiche" onclick={() => ouvrirFiche(j)}><i class="icon-pencil" aria-hidden="true"></i></button>{/if}
 		</div>
 		<div class="corps">
 			<div class="titre">{j.nom}</div>
@@ -210,7 +212,7 @@
 		<div class="sync">
 			{#if data.steamConfigure}
 				Bibliothèques synchronisées {ilYa(data.derniereSync)}
-				<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Actualiser les bibliothèques" title="Actualiser" disabled={synchro} onclick={synchroniser}><i class={synchro ? 'icon-loader' : 'icon-refresh-cw'} aria-hidden="true"></i></button>
+				{#if connecte}<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Actualiser les bibliothèques" title="Actualiser" disabled={synchro} onclick={synchroniser}><i class={synchro ? 'icon-loader' : 'icon-refresh-cw'} aria-hidden="true"></i></button>{/if}
 			{:else}
 				Steam n’est pas encore configuré sur le hub.
 			{/if}
@@ -221,13 +223,13 @@
 		variante="underline"
 		onglets={[
 			{ valeur: 'commun', libelle: 'Jeux en commun', icone: 'library', compte: communs.length },
-			{ valeur: 'tirage', libelle: 'Tirage au sort', icone: 'dices' }
+			...(connecte ? [{ valeur: 'tirage', libelle: 'Tirage au sort', icone: 'dices' }] : [])
 		]}
 		valeur={onglet}
 		onchange={changerOnglet}
 	/>
 
-	{#if onglet === 'commun'}
+	{#if onglet === 'commun' || !connecte}
 		<div class="pile">
 			<div class="nh-card" style="padding:24px">
 				<div class="pile" style="gap:18px">
@@ -244,10 +246,10 @@
 								<span class="prenom">{m.nom.split(' ')[0]}{#if m.etatSteam === 'privee'} <i class="icon-lock" aria-label="bibliothèque privée"></i>{/if}</span>
 							</button>
 						{/each}
-						{#if !joueurs.length}<div class="discret">Personne n’a encore lié son compte Steam. Ça se fait depuis la page <a href="/compte">Compte</a>.</div>{/if}
+						{#if !joueurs.length}<div class="discret">Personne n’a encore lié son compte Steam.{#if connecte} Ça se fait depuis la page <a href="/compte">Compte</a>.{/if}</div>{/if}
 					</div>
 					{#if sansSteam.length && joueurs.length}
-						<div class="discret">Pas encore de Steam lié : {listeNoms(sansSteam.map((m) => m.nom.split(' ')[0]))}. Ça se fait depuis la page <a href="/compte">Compte</a>.</div>
+						<div class="discret">Pas encore de Steam lié : {listeNoms(sansSteam.map((m) => m.nom.split(' ')[0]))}.{#if connecte} Ça se fait depuis la page <a href="/compte">Compte</a>.{/if}</div>
 					{/if}
 				</div>
 			</div>

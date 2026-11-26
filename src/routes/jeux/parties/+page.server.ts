@@ -1,14 +1,15 @@
 import { fail } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '#lib/server/db/index.ts';
-import { exigerMembre } from '#lib/server/garde.ts';
+import { exigerMembre, lecteur } from '#lib/server/garde.ts';
 import { tousLesMembres } from '#lib/server/membres.ts';
 import { entier, ids, parmi, texte } from '#lib/server/formulaires.ts';
 import { ORDRE_PARTIE } from '#lib/libelles.ts';
 import { tourActuel } from '#lib/parties.ts';
 
+// Lisible sans connexion (lecture seule) ; toutes les actions demandent un membre.
 export const load = ({ locals }) => {
-	exigerMembre(locals);
+	const moi = lecteur(locals);
 	const base = db();
 	const participations = base.select().from(schema.participations).all();
 	const sessions = base.select().from(schema.sessionsPartie).all();
@@ -31,7 +32,7 @@ export const load = ({ locals }) => {
 	// Suggestions pour le champ « Jeu » : les jeux de la liste et ceux déjà utilisés.
 	const titres = base.select({ titre: schema.jeux.titre }).from(schema.jeux).all().map((j) => j.titre);
 	const nomsJeux = [...new Set([...titres, ...parties.map((p) => p.jeu)])].sort((a, b) => a.localeCompare(b, 'fr'));
-	return { parties, membres: tousLesMembres(), nomsJeux };
+	return { parties, membres: tousLesMembres({ visiteur: !moi }), nomsJeux };
 };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

@@ -48,7 +48,7 @@
 
 	<footer class="pied">
 		<span>Aussi sur le site</span>
-		<a href="/panel"><i class="icon-layout-dashboard" aria-hidden="true"></i>Panel</a>
+		{#if data.moi}<a href="/panel"><i class="icon-layout-dashboard" aria-hidden="true"></i>Panel</a>{/if}
 		<a href="/status"><i class="icon-activity" aria-hidden="true"></i>Status</a>
 	</footer>
 </main>
