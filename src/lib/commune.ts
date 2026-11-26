@@ -1,8 +1,5 @@
 // Watch list commune : votes, soirées et dates (partagés entre serveur et pages).
 
-/** Chaque membre a 3 votes à répartir sur les titres pas encore vus ensemble. */
-export const VOTES_MAX = 3;
-
 /** Heures proposées pour une soirée (HH:MM). */
 export const HEURES = ['18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00'];
 

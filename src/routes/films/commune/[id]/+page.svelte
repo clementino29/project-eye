@@ -10,7 +10,7 @@
 	import { envoyer } from '#lib/actions.ts';
 	import { artTitre } from '#lib/design/art.ts';
 	import { PASTILLES_WATCHLIST } from '#lib/design/pastilles.ts';
-	import { enumerer, heureLisible, jourLong, pluriel, VOTES_MAX } from '#lib/commune.ts';
+	import { enumerer, heureLisible, jourLong, pluriel } from '#lib/commune.ts';
 	import type { VueSoiree } from '#lib/server/commune.ts';
 	import type { StatutWl } from '#lib/watchlist.ts';
 
@@ -50,7 +50,6 @@
 	const prevue = $derived(data.soirees.find((s) => s.titreId === t.id && s.date >= data.aujourdhui) ?? null);
 	const vote = $derived(data.moiId !== null && e.votes.includes(data.moiId));
 	const peutVoter = $derived(e.statut !== 'vu');
-	const plusDeVotes = $derived(!vote && data.votesUtilises >= VOTES_MAX);
 	const jeLaiVu = $derived(data.moiId !== null && e.dejaVu.includes(data.moiId));
 	const parWatchlist = $derived(jeLaiVu && !e.dejaVuCoche.includes(data.moiId!));
 
@@ -99,10 +98,9 @@
 			{#if connecte}
 				<div class="actions">
 					{#if peutVoter}
-						<button type="button" class="nh-btn nh-btn--block {vote ? 'nh-btn--secondary' : 'nh-btn--primary'}" aria-pressed={vote} disabled={envoi || plusDeVotes} title={plusDeVotes ? `Tu as déjà donné tes ${VOTES_MAX} votes` : undefined} onclick={() => action('voter', { titreId: t.id }, true, '/films?/')}>
+						<button type="button" class="nh-btn nh-btn--block {vote ? 'nh-btn--secondary' : 'nh-btn--primary'}" aria-pressed={vote} disabled={envoi} onclick={() => action('voter', { titreId: t.id }, true, '/films?/')}>
 							<i class="icon-chevron-up" aria-hidden="true"></i>{vote ? 'Voté' : 'Voter'} · {e.votes.length}
 						</button>
-						{#if plusDeVotes}<span class="aide">Tes {VOTES_MAX} votes sont pris : retires-en un pour voter ici.</span>{/if}
 					{/if}
 					<button type="button" class="nh-btn nh-btn--outline nh-btn--block" onclick={() => (plan = prevue ? { ...prevue } : { titreId: t.id })}><i class="icon-calendar-plus" aria-hidden="true"></i>{prevue ? 'Modifier la soirée' : 'Programmer une soirée'}</button>
 				</div>
