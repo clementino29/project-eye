@@ -7,6 +7,7 @@ import { entier, ids, parmi, texte } from '#lib/server/formulaires.ts';
 import { ORDRE_PARTIE } from '#lib/libelles.ts';
 import { tourActuel, type EquipePartie } from '#lib/parties.ts';
 import { lireEquipes } from '#lib/server/equipes.ts';
+import { estHeure, estJour } from '#lib/commune.ts';
 
 // Lisible sans connexion (lecture seule) ; toutes les actions demandent un membre.
 export const load = ({ locals }) => {
@@ -30,6 +31,8 @@ export const load = ({ locals }) => {
 			image: (p.jeuId && images.get(p.jeuId)) || null,
 			statut: p.statut,
 			toursMax: p.toursMax,
+			prochaineSession: p.prochaineSession,
+			heureSession: p.heureSession,
 			joueurs: participations.filter((x) => x.partieId === p.id).map((x) => x.membreId),
 			equipes: equipes
 				.filter((e) => e.partieId === p.id)
@@ -76,12 +79,19 @@ export const actions = {
 		const base = db();
 		// Relie la partie au jeu de la liste quand le nom correspond.
 		const jeu = base.select({ id: schema.jeux.id }).from(schema.jeux).where(eq(schema.jeux.titre, jeuNom)).get();
+		// Prochaine session (facultative), annoncée sur Discord la veille. Une partie terminée n'en a plus.
+		const prochaine = texte(f, 'prochaineSession', 10);
+		const heure = texte(f, 'heureSession', 5);
+		if (prochaine && !estJour(prochaine)) return fail(400, { erreur: 'Date de la prochaine session invalide.' });
+		if (heure && !estHeure(heure)) return fail(400, { erreur: 'Heure de la prochaine session invalide.' });
 		const valeurs = {
 			nom,
 			jeuNom,
 			jeuId: jeu?.id ?? null,
 			statut,
-			toursMax: max && max > 0 ? max : null
+			toursMax: max && max > 0 ? max : null,
+			prochaineSession: terminee ? null : prochaine || null,
+			heureSession: terminee || !prochaine ? null : heure || null
 		};
 		let partieId = id;
 		base.transaction((tx) => {
@@ -113,7 +123,10 @@ export const actions = {
 		const statut = parmi(texte(f, 'statut'), ORDRE_PARTIE);
 		if (!id || !statut) return fail(400, { erreur: 'Statut inconnu.' });
 		db().transaction((tx) => {
-			tx.update(schema.parties).set({ statut }).where(eq(schema.parties.id, id)).run();
+			tx.update(schema.parties)
+				.set(statut === 'terminee' ? { statut, prochaineSession: null, heureSession: null } : { statut })
+				.where(eq(schema.parties.id, id))
+				.run();
 			// Une partie qui reprend n'a plus de vainqueur.
 			if (statut !== 'terminee') {
 				tx.delete(schema.gagnantsPartie).where(eq(schema.gagnantsPartie.partieId, id)).run();
@@ -140,8 +153,8 @@ export const actions = {
 		if (!partieId || !DATE.test(date) || !tour || tour < 1)
 			return fail(400, { erreur: 'Indique une date et le tour atteint.' });
 		const base = db();
-		if (!base.select({ id: schema.parties.id }).from(schema.parties).where(eq(schema.parties.id, partieId)).get())
-			return fail(404, { erreur: 'Partie introuvable.' });
+		const partie = base.select().from(schema.parties).where(eq(schema.parties.id, partieId)).get();
+		if (!partie) return fail(404, { erreur: 'Partie introuvable.' });
 		const actuel = tourActuel(
 			base.select().from(schema.sessionsPartie).where(eq(schema.sessionsPartie.partieId, partieId)).all()
 		);
@@ -150,6 +163,9 @@ export const actions = {
 			.insert(schema.sessionsPartie)
 			.values({ partieId, date, tourAtteint: tour, note: texte(f, 'note', 500) || null })
 			.run();
+		// La session prévue a eu lieu : on l'efface, la suivante se reprogramme dans « Modifier ».
+		if (partie.prochaineSession && date >= partie.prochaineSession)
+			base.update(schema.parties).set({ prochaineSession: null, heureSession: null }).where(eq(schema.parties.id, partieId)).run();
 		return { ok: 'Session ajoutée' };
 	},
 

@@ -141,6 +141,10 @@ export const parties = sqliteTable('parties', {
 	/** Vide = sans limite de tours. */
 	toursMax: integer('tours_max'),
 	serveurId: integer('serveur_id').references(() => serveurs.id, { onDelete: 'set null' }),
+	/** Prochaine session prévue (AAAA-MM-JJ, heure de Paris), annoncée sur Discord la veille. */
+	prochaineSession: text('prochaine_session'),
+	/** Heure de la prochaine session (HH:MM), facultative. */
+	heureSession: text('heure_session'),
 	creeeLe: integer('creee_le').notNull().default(maintenant)
 });
 
@@ -537,3 +541,15 @@ export type Titre = typeof titres.$inferSelect;
 export type Soiree = typeof soirees.$inferSelect;
 export type Projet = typeof projets.$inferSelect;
 export type Fichier = typeof fichiers.$inferSelect;
+
+// --- Automatisations ---
+
+/** Tâches planifiées du hub : dernier jour où chacune a tourné, pour ne la lancer qu'une fois par jour. */
+export const tachesPlanifiees = sqliteTable('taches_planifiees', {
+	nom: text('nom').primaryKey(),
+	/** Jour (AAAA-MM-JJ, heure de Paris) du dernier passage. */
+	dernierJour: text('dernier_jour').notNull(),
+	derniereExecution: integer('derniere_execution').notNull(),
+	/** Résumé lisible du dernier passage (« 5 membres à jour », « erreur : … »). */
+	resultat: text('resultat')
+});

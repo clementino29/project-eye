@@ -33,6 +33,11 @@ export function lireTaille(v: string | undefined) {
 	return Math.round(Number(m[1].replace(',', '.')) * facteur);
 }
 
+function lireHeure(v: string | undefined, defaut: number) {
+	const n = Number(v);
+	return v !== undefined && Number.isInteger(n) && n >= 0 && n <= 23 ? n : defaut;
+}
+
 function sansSlashFinal(url: string | undefined) {
 	return url?.replace(/\/+$/, '');
 }
@@ -94,6 +99,27 @@ export const config = {
 	steam: {
 		get cleApi() {
 			return lire('STEAM_API_KEY');
+		}
+	},
+	/** Annonces sur le serveur Discord du groupe, par un webhook (vide = pas d'annonce). */
+	discord: {
+		get webhook() {
+			const v = lire('DISCORD_WEBHOOK_URL');
+			return v && /^https:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(v) ? v : undefined;
+		}
+	},
+	/** Tâches planifiées (heure de Paris) : synchro Steam de la nuit et annonces de la veille. */
+	taches: {
+		/** TACHES=0 les coupe ; en développement, elles ne tournent qu'avec TACHES=1. */
+		actives(dev: boolean) {
+			const v = lire('TACHES');
+			return dev ? v === '1' : v !== '0';
+		},
+		get heureSteam() {
+			return lireHeure(lire('HEURE_SYNCHRO_STEAM'), 5);
+		},
+		get heureAnnonces() {
+			return lireHeure(lire('HEURE_ANNONCES'), 18);
 		}
 	},
 	/** IGDB passe par une application Twitch (https://dev.twitch.tv/console/apps). */

@@ -8,8 +8,8 @@ Hub privé du groupe : jeux en cours, parties, choix du jeu, panel serveur et st
 | Page | Contenu |
 | --- | --- |
 | **Accueil** | Raccourcis vers chaque partie du hub. |
-| **Jeux › Liste des jeux en cours** | Les jeux de la bande, empilés par série, avec statut et joueurs. |
-| **Jeux › Parties** | Parties au tour par tour : avancement, gagnant, journal des sessions. |
+| **Jeux › Liste des jeux en cours** | Les jeux de la bande, empilés par série, avec statut et joueurs. Ajout par lien Steam ou recherche IGDB. |
+| **Jeux › Parties** | Parties au tour par tour : avancement, gagnant, journal des sessions, prochaine session annoncée sur Discord. |
 | **Jeux › Quoi faire ?** | Jeux Steam en commun entre les présents, onglet « Presque », envies et roue pondérée. |
 | **Fichiers** | Jeux et projets avec leurs fichiers à installer (applis, mods, configs, liens), filtrés par plateforme, et leurs étapes d'installation. Réservé aux membres. |
 | **Panel** | Serveurs Sakura Panel (Pelican) : état, démarrer, arrêter, redémarrer, journal des actions. |
@@ -74,6 +74,8 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 | `TMDB_API_KEY` | Clé TMDB (v3) ou jeton de lecture (v4), pour chercher les films et séries (Ma watchlist et Watch list commune). |
 | `PELICAN_URL` | Adresse de Sakura Panel. `PELICAN_API_KEYS_URL` et `PELICAN_SERVER_URL_TEMPLATE` sont facultatives. |
 | `KUMA_URL`, `KUMA_STATUS_SLUG` | Page de statut publique d'Uptime Kuma. |
+| `DISCORD_WEBHOOK_URL` | Facultatif. Webhook du salon Discord où le hub annonce un serveur démarré et ce qui est prévu le lendemain. |
+| `HEURE_SYNCHRO_STEAM`, `HEURE_ANNONCES` | Facultatives. Heures (de Paris) des tâches automatiques : 5 h et 18 h par défaut. `TACHES=0` les coupe. |
 | `PLANNING_URL` | Lien « Planning » du menu (par défaut https://calendar.la-sikaverne.fr/, « aucun » le masque). |
 
 ### Authentik
@@ -115,6 +117,21 @@ Ma watchlist et la Watch list commune cherchent les films et les séries sur TMD
 2. Colle la « clé d'API » ou le « jeton d'accès en lecture » dans `TMDB_API_KEY`.
 
 Sans clé, les pages s'ouvrent mais la fenêtre « Ajouter un titre » ne peut rien chercher.
+
+### Discord et tâches automatiques
+
+Le hub lance seul deux tâches, à l'heure de Paris :
+
+- **chaque nuit** (`HEURE_SYNCHRO_STEAM`, 5 h) : il relit les bibliothèques Steam de tous les membres liés, comme le bouton « Actualiser » de Quoi faire ? ;
+- **chaque jour** (`HEURE_ANNONCES`, 18 h) : il annonce sur Discord les soirées de la Watch list commune et les sessions de parties prévues le lendemain.
+
+Chaque tâche tourne une fois par jour ; si le hub était arrêté à l'heure prévue, elle tourne à son redémarrage. Il annonce aussi
+sur Discord un serveur démarré depuis la page Panel (sans son adresse). Les annonces ne citent que les prénoms et ne mentionnent personne.
+
+Pour les annonces, crée un webhook dans le salon voulu (*Paramètres du salon › Intégrations › Webhooks*) et colle son adresse dans
+`DISCORD_WEBHOOK_URL`. La page Compte des admins montre le dernier passage de chaque tâche et un bouton « Envoyer un test ».
+
+La prochaine session d'une partie se règle dans « Modifier la partie » ; elle s'efface quand la session est ajoutée au journal.
 
 ### Uptime Kuma
 

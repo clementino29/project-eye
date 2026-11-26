@@ -21,6 +21,20 @@ export function lireEntreeSteam(brut: string): EntreeSteam | null {
 	return { type: 'pseudo', valeur: m[2] };
 }
 
+/**
+ * Lit un lien vers un jeu Steam : page du Store, page communautaire, lien steam://
+ * ou simple numéro d'appli. Renvoie le numéro d'appli (appid), ou null.
+ */
+export function lireLienSteam(brut: string): number | null {
+	const v = brut.trim();
+	const m =
+		v.match(/^(?:https?:\/\/)?(?:store\.steampowered\.com|steamcommunity\.com|s\.team)\/app\/(\d{1,10})(?:[/?#].*)?$/i) ??
+		v.match(/^steam:\/\/(?:store|run|rungameid|install|nav\/games\/details)\/(\d{1,10})\/?$/i) ??
+		v.match(/^(\d{1,10})$/);
+	const appid = m ? Number(m[1]) : NaN;
+	return Number.isSafeInteger(appid) && appid > 0 ? appid : null;
+}
+
 export class ErreurSteam extends Error {}
 
 export class ClientSteam {

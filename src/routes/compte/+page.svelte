@@ -82,6 +82,7 @@
 	let erreurSteam = $state('');
 	let erreurCle = $state('');
 	let liaison = $state(false);
+	let testDiscord = $state(false);
 	let synchro = $state(false);
 	let enregistrementCle = $state(false);
 	let edition = $state(false);
@@ -316,6 +317,34 @@
 						<span class="quand">Vu {ilYa(m.derniereConnexion)}</span>
 					</div>
 				{/each}
+			</div>
+		</section>
+	{/if}
+
+	{#if data.automatisations}
+		{@const a = data.automatisations}
+		<section aria-labelledby="auto-titre" class="bloc">
+			<div class="tete">
+				<div class="tuile"><i class="icon-alarm-clock" aria-hidden="true"></i></div>
+				<div class="texte"><h2 id="auto-titre">Automatisations</h2><span>Tâches que le hub lance seul, à l'heure de Paris.</span></div>
+			</div>
+			<div class="table">
+				{#each [{ cle: 'synchro-steam', nom: 'Bibliothèques Steam', quand: `Chaque nuit à ${a.heureSteam} h` }, { cle: 'annonces-demain', nom: 'Annonces de la veille', quand: `Chaque jour à ${a.heureAnnonces} h, sur Discord` }] as t (t.cle)}
+					{@const p = a.passages[t.cle]}
+					<div class="rang">
+						<div class="qui"><strong>{t.nom}</strong><span>{t.quand}</span></div>
+						<span class="quand">{p ? `${p.resultat ?? '…'} · ${ilYa(p.quand)}` : 'Pas encore lancée'}</span>
+					</div>
+				{/each}
+				<div class="rang">
+					<div class="qui"><strong>Webhook Discord</strong><span>Serveur démarré depuis le Panel, soirée ou session prévue le lendemain.</span></div>
+					<span class="nh-badge nh-badge--{a.discord ? 'success' : 'neutral'}">{a.discord ? 'Réglé' : 'Non réglé'}</span>
+					{#if a.discord}
+						<form method="POST" action="?/testerDiscord" use:enhance={avecRetour((v) => (testDiscord = v))}>
+							<button class="nh-btn nh-btn--outline nh-btn--sm" disabled={testDiscord}><i class={testDiscord ? 'icon-loader' : 'icon-send'} aria-hidden="true"></i>Envoyer un test</button>
+						</form>
+					{/if}
+				</div>
 			</div>
 		</section>
 	{/if}

@@ -230,7 +230,7 @@
 		</div>
 		<div class="sync">
 			{#if data.steamConfigure}
-				Bibliothèques synchronisées {ilYa(data.derniereSync)}
+				<span title="Mises à jour automatiquement chaque nuit">Bibliothèques synchronisées {ilYa(data.derniereSync)}</span>
 				{#if connecte}<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost nh-btn--sm" aria-label="Actualiser les bibliothèques" title="Actualiser" disabled={synchro} onclick={synchroniser}><i class={synchro ? 'icon-loader' : 'icon-refresh-cw'} aria-hidden="true"></i></button>{/if}
 			{:else}
 				Steam n’est pas encore configuré sur le hub.

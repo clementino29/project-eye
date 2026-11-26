@@ -26,7 +26,7 @@
 	let ouverte = $state<string | null>(null);
 	let menu = $state<number | null>(null);
 	let modale = $state<'nouveau' | number | null>(null);
-	let form = $state({ titre: '', serie: '', image: '', statut: 'a_faire' as StatutJeu, joueurs: [] as number[], igdbId: null as number | null });
+	let form = $state({ titre: '', serie: '', image: '', statut: 'a_faire' as StatutJeu, joueurs: [] as number[], igdbId: null as number | null, steamAppId: null as number | null });
 	let enregistrement = $state(false);
 
 	const cols = $derived(largeur >= 1440 ? 5 : largeur >= 1000 ? 4 : largeur >= 720 ? 3 : 2);
@@ -94,14 +94,16 @@
 	const series = $derived([...new Set(data.jeux.map((g) => g.serie).filter(Boolean))]);
 
 	function ouvrirAjout() {
-		form = { titre: '', serie: ouverte ?? '', image: '', statut: 'a_faire', joueurs: data.moi ? [data.moi.id] : [], igdbId: null };
+		form = { titre: '', serie: ouverte ?? '', image: '', statut: 'a_faire', joueurs: data.moi ? [data.moi.id] : [], igdbId: null, steamAppId: null };
 		viderIgdb();
+		viderSteam();
 		menu = null;
 		modale = 'nouveau';
 	}
 	function ouvrirEdition(j: Jeu) {
-		form = { titre: j.titre, serie: j.serie, image: j.image, statut: j.statut, joueurs: [...j.joueurs], igdbId: j.igdbId };
+		form = { titre: j.titre, serie: j.serie, image: j.image, statut: j.statut, joueurs: [...j.joueurs], igdbId: j.igdbId, steamAppId: j.steamAppId };
 		viderIgdb();
+		viderSteam();
 		menu = null;
 		modale = j.id;
 	}
@@ -166,6 +168,40 @@
 		if (r.banniere) form.image = r.banniere;
 		form.igdbId = r.igdbId;
 		viderIgdb();
+	}
+
+	// Ajout par lien Steam : on colle le lien de la page du jeu, le hub remplit le titre et la bannière.
+	let lienSteam = $state('');
+	let etatSteam = $state<{ t: 'repos' | 'charge' | 'ok' | 'erreur'; m?: string }>({ t: 'repos' });
+	let attenteSteam: ReturnType<typeof setTimeout> | undefined;
+	let numeroSteam = 0;
+	const RESSEMBLE_STEAM = /(?:store\.steampowered\.com|steamcommunity\.com|s\.team)\/app\/\d+|^steam:\/\/\S+\/\d+|^\d{2,10}$/i;
+	function viderSteam() {
+		clearTimeout(attenteSteam);
+		lienSteam = '';
+		etatSteam = { t: 'repos' };
+	}
+	function lireSteam() {
+		clearTimeout(attenteSteam);
+		const lien = lienSteam.trim();
+		if (!lien) return (etatSteam = { t: 'repos' });
+		if (!RESSEMBLE_STEAM.test(lien)) return (etatSteam = { t: 'erreur', m: 'Colle le lien de la page du jeu sur Steam (store.steampowered.com/app/…).' });
+		etatSteam = { t: 'charge' };
+		attenteSteam = setTimeout(async () => {
+			const n = ++numeroSteam;
+			try {
+				const rep = await fetch(`/jeux/steam?lien=${encodeURIComponent(lien)}`);
+				const r = await rep.json();
+				if (n !== numeroSteam) return;
+				if (!rep.ok) return (etatSteam = { t: 'erreur', m: r?.message ?? 'Steam ne répond pas.' });
+				form.titre = r.titre;
+				form.image = r.image;
+				form.steamAppId = r.appid;
+				etatSteam = { t: 'ok', m: `${r.titre} : titre et bannière remplis depuis Steam.` };
+			} catch {
+				if (n === numeroSteam) etatSteam = { t: 'erreur', m: 'Steam ne répond pas. Tu peux remplir à la main.' };
+			}
+		}, 250);
 	}
 
 	function fermerMenus() {
@@ -297,9 +333,20 @@
 	<Dialog titre={modale === 'nouveau' ? 'Ajouter un jeu' : 'Modifier le jeu'} onfermer={() => (modale = null)}>
 		<form class="form" onsubmit={(e) => { e.preventDefault(); enregistrer(); }}>
 			<div class="defile">
+				<div class="nh-field">
+					<label class="nh-field__label" for="j-steam">Lien Steam</label>
+					<div class="nh-input"><i class={etatSteam.t === 'charge' ? 'icon-loader' : 'icon-link-2'} aria-hidden="true"></i><input id="j-steam" bind:value={lienSteam} oninput={lireSteam} placeholder="https://store.steampowered.com/app/…" autocomplete="off" inputmode="url" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} /></div>
+					{#if etatSteam.t === 'ok' || etatSteam.t === 'erreur'}
+						<div class="nh-field__hint" class:nh-field__hint--error={etatSteam.t === 'erreur'} role={etatSteam.t === 'erreur' ? 'alert' : 'status'}>{#if etatSteam.t === 'ok'}<i class="icon-check" aria-hidden="true"></i> {/if}{etatSteam.m}</div>
+					{:else if form.steamAppId}
+						<div class="nh-field__hint">Lié au jeu Steam n° {form.steamAppId}.</div>
+					{:else}
+						<div class="nh-field__hint">Colle le lien de la page du jeu : le titre et la bannière se remplissent seuls.</div>
+					{/if}
+				</div>
 				{#if data.igdbActif}
 					<div class="nh-field">
-						<label class="nh-field__label" for="j-igdb">Chercher sur IGDB</label>
+						<label class="nh-field__label" for="j-igdb">Ou chercher sur IGDB</label>
 						<div class="nh-input"><i class={etatIgdb === 'charge' ? 'icon-loader' : 'icon-search'} aria-hidden="true"></i><input id="j-igdb" bind:value={rechercheIgdb} oninput={chercherIgdb} placeholder="Halo, Civilization…" autocomplete="off" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} /></div>
 						{#if resultatsIgdb.length}
 							<div class="igdb" role="listbox" aria-label="Résultats IGDB">

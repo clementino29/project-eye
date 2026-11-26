@@ -24,6 +24,7 @@
 		trierSessions,
 		type CouleurEquipe
 	} from '#lib/parties.ts';
+	import { HEURES, heureLisible, jourCourt, jourLong } from '#lib/commune.ts';
 
 	let { data } = $props();
 	type Partie = (typeof data.parties)[number];
@@ -44,6 +45,8 @@
 		nom: '',
 		jeu: '',
 		toursMax: '',
+		prochaineSession: '',
+		heureSession: '',
 		statut: 'en_cours' as StatutPartie,
 		joueurs: [] as number[],
 		enEquipes: false,
@@ -63,6 +66,15 @@
 	const aujourdhui = () => {
 		const d = new Date();
 		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	};
+
+	/** Prochaine session prévue, si elle n'est pas passée. */
+	const aVenir = (p: Partie) => (p.prochaineSession && p.prochaineSession >= aujourdhui() ? p.prochaineSession : null);
+	const quandProchaine = (p: Partie, long = false) => {
+		const j = aVenir(p);
+		if (!j) return '';
+		const jour = j === aujourdhui() ? 'ce soir' : long ? jourLong(j) : jourCourt(j);
+		return `${jour}${p.heureSession ? ` à ${heureLisible(p.heureSession)}` : ''}`;
 	};
 
 	type Cellule = { type: 'carte'; partie: Partie; ouverte: boolean } | { type: 'panneau'; partie: Partie; caret: string };
@@ -116,7 +128,7 @@
 	const peutAjouterSession = $derived(!!sform.date && Number.parseInt(sform.tour, 10) >= sform.min && !envoi);
 
 	function ouvrirAjout() {
-		form = { nom: '', jeu: filtreJeu !== 'tous' ? filtreJeu : '', toursMax: '', statut: 'en_cours', joueurs: data.moi ? [data.moi.id] : [], enEquipes: false, equipes: [], gagnants: [] };
+		form = { nom: '', jeu: filtreJeu !== 'tous' ? filtreJeu : '', toursMax: '', prochaineSession: '', heureSession: '', statut: 'en_cours', joueurs: data.moi ? [data.moi.id] : [], enEquipes: false, equipes: [], gagnants: [] };
 		menu = null;
 		modale = 'nouvelle';
 	}
@@ -125,6 +137,8 @@
 			nom: p.nom,
 			jeu: p.jeu,
 			toursMax: p.toursMax ? String(p.toursMax) : '',
+			prochaineSession: aVenir(p) ?? '',
+			heureSession: aVenir(p) ? (p.heureSession ?? '') : '',
 			statut: p.statut,
 			joueurs: [...p.joueurs],
 			enEquipes: p.equipes.length > 0,
@@ -207,6 +221,8 @@
 			nom: form.nom,
 			jeu: form.jeu,
 			toursMax: form.toursMax,
+			prochaineSession: form.statut === 'terminee' ? '' : form.prochaineSession,
+			heureSession: form.statut === 'terminee' || !form.prochaineSession ? '' : form.heureSession,
 			statut: form.statut,
 			joueurs: form.joueurs,
 			equipes: form.enEquipes ? JSON.stringify(form.equipes.map(({ nom, couleur, gagnante, membres }) => ({ nom, couleur, gagnante, membres }))) : '[]',
@@ -348,7 +364,11 @@
 							{/if}
 							<div class="c-pied">
 								<AvatarGroup personnes={personnes(p)} taille={24} />
-								<span class="sub">{p.sessions.length ? `Dernière session ${dateCourte(derniereSession(p.sessions))}` : 'Pas encore jouée'}</span>
+								{#if aVenir(p)}
+									<span class="prochaine" title="Annoncée sur Discord la veille"><i class="icon-calendar-clock" aria-hidden="true"></i>{quandProchaine(p)}</span>
+								{:else}
+									<span class="sub">{p.sessions.length ? `Dernière session ${dateCourte(derniereSession(p.sessions))}` : 'Pas encore jouée'}</span>
+								{/if}
 							</div>
 						</div>
 					{:else}
@@ -370,6 +390,12 @@
 										{@render avancement(p, true)}
 										<span class="sub" style="white-space:normal">{sessions.length ? `${sessions.length} session${sessions.length > 1 ? 's' : ''} depuis le ${dateCourte(sessions[0].date)}` : 'Partie pas encore commencée'}</span>
 									</div>
+									{#if aVenir(p)}
+										<div class="bloc">
+											<span class="nh-overline">Prochaine session</span>
+											<span class="prochaine grande"><i class="icon-calendar-clock" aria-hidden="true"></i>{quandProchaine(p, true)}</span>
+										</div>
+									{/if}
 									<div class="bloc">
 										<span class="nh-overline">Joueurs</span>
 										{#snippet ligneJoueur(id: number, gagne: boolean)}
@@ -504,6 +530,22 @@
 						{/each}
 					</div>
 				</div>
+				{#if form.statut !== 'terminee'}
+					<div class="nh-field">
+						<label class="nh-field__label" for="p-prochaine">Prochaine session</label>
+						<div class="deux-champs">
+							<div class="nh-input"><input id="p-prochaine" type="date" min={aujourdhui()} bind:value={form.prochaineSession} /></div>
+							<div class="nh-input">
+								<select aria-label="Heure de la prochaine session" bind:value={form.heureSession} disabled={!form.prochaineSession}>
+									<option value="">Heure libre</option>
+									{#each HEURES as h (h)}<option value={h}>{heureLisible(h)}</option>{/each}
+								</select>
+							</div>
+							{#if form.prochaineSession}<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost" aria-label="Retirer la prochaine session" title="Retirer" onclick={() => ((form.prochaineSession = ''), (form.heureSession = ''))}><i class="icon-x" aria-hidden="true"></i></button>{/if}
+						</div>
+						<div class="nh-field__hint">Facultatif. Elle est annoncée sur Discord la veille, et s'efface quand la session est ajoutée au journal.</div>
+					</div>
+				{/if}
 				{#if form.statut === 'terminee' && form.joueurs.length}
 					<div class="groupe">
 						<span class="nh-field__label">{form.enEquipes ? 'Quelle équipe a gagné' : 'Qui a gagné'}</span>
@@ -755,6 +797,29 @@
 	.victoire i {
 		font-size: 16px;
 		color: var(--apricot-300);
+	}
+	.prochaine {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font: var(--type-body-sm);
+		font-weight: 600;
+		color: var(--apricot-300);
+		white-space: nowrap;
+	}
+	.prochaine.grande {
+		font: var(--type-body);
+		font-weight: 600;
+		white-space: normal;
+	}
+	.deux-champs {
+		display: flex;
+		gap: var(--space-2);
+		align-items: center;
+	}
+	.deux-champs > .nh-input {
+		flex: 1;
+		min-width: 0;
 	}
 	.c-pied {
 		margin-top: auto;

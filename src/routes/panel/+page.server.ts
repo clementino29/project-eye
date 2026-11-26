@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import { dechiffrer } from '#lib/server/crypto.ts';
 import { db, schema } from '#lib/server/db/index.ts';
 import { exigerAdmin, exigerMembre } from '#lib/server/garde.ts';
+import { annoncerDemarrage } from '#lib/server/discord.ts';
 import { joueursConnectes } from '#lib/server/joueurs.ts';
 import {
 	ClientPelican,
@@ -148,6 +149,16 @@ export const actions = {
 			}
 			await client.alimentation(id, signal);
 			noter('ok', null);
+			// Annonce Discord (sans attendre, ni bloquer en cas d'échec). Le nom et le jeu viennent des réglages du hub.
+			if (signal === 'start') {
+				const local = db()
+					.select({ nom: schema.serveurs.nom, jeu: schema.jeux.titre })
+					.from(schema.serveurs)
+					.leftJoin(schema.jeux, eq(schema.jeux.id, schema.serveurs.jeuId))
+					.where(eq(schema.serveurs.identifiantPelican, id))
+					.get();
+				void annoncerDemarrage({ id, nom: local?.nom || nom, jeu: local?.jeu, par: m.nom.trim().split(/\s+/)[0] || m.pseudo });
+			}
 			return { ok: true, signal, nom };
 		} catch (e) {
 			const message = e instanceof Error ? e.message : 'Erreur inconnue';
