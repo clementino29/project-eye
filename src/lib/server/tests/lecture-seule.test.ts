@@ -5,6 +5,8 @@ import { ouvertAuxVisiteurs } from '../acces.ts';
 import * as liste from '../../../routes/jeux/liste/+page.server.ts';
 import * as parties from '../../../routes/jeux/parties/+page.server.ts';
 import * as quoiFaire from '../../../routes/jeux/quoi-faire/+page.server.ts';
+import * as commune from '../../../routes/films/+page.server.ts';
+import * as calendrier from '../../../routes/films/calendrier/+page.server.ts';
 import type { Membre } from '../db/schema.ts';
 
 let lea: Membre;
@@ -41,14 +43,15 @@ beforeAll(() => {
 
 describe('adresses ouvertes aux visiteurs', () => {
 	it('ouvre en lecture les pages publiques', () => {
-		for (const c of ['/', '/status', '/jeux', '/jeux/liste', '/jeux/parties', '/jeux/quoi-faire', '/membres/3/photo', '/sante'])
+		for (const c of ['/', '/status', '/jeux', '/jeux/liste', '/jeux/parties', '/jeux/quoi-faire', '/films', '/films/calendrier', '/films/commune/4', '/membres/3/photo', '/sante'])
 			expect(ouvertAuxVisiteurs('GET', c), c).toBe(true);
 	});
 	it('garde fermés le Panel, le Compte et toute écriture', () => {
-		for (const c of ['/panel', '/compte', '/jeux/igdb', '/jeux/liste/autre', '/deconnexion', '/films/ma-watchlist', '/films/les-potes', '/films/titre/1', '/films/tmdb'])
+		for (const c of ['/panel', '/compte', '/jeux/igdb', '/jeux/liste/autre', '/deconnexion', '/films/ma-watchlist', '/films/les-potes', '/films/titre/1', '/films/tmdb', '/films/commune', '/films/commune/4/x'])
 			expect(ouvertAuxVisiteurs('GET', c), c).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/jeux/liste')).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/jeux/quoi-faire')).toBe(false);
+		expect(ouvertAuxVisiteurs('POST', '/films')).toBe(false);
 	});
 	it('laisse un visiteur se connecter', () => {
 		expect(ouvertAuxVisiteurs('POST', '/connexion')).toBe(true);
@@ -78,10 +81,21 @@ describe('pages en lecture seule', () => {
 		expect(r.membres.map((m) => m.nom)).toContain('Léa Martin');
 		expect(r.envies[10]).toEqual([lea.id]);
 	});
+	it('montre la Watch list commune avec les prénoms, sans idées ni e-mail', () => {
+		const r = commune.load(visiteur);
+		expect(r.moiId).toBeNull();
+		expect(r.idees).toEqual([]);
+		expect(r.membres.map((m) => m.nom).sort()).toEqual(['Léa', 'Tom']);
+		expect(r.lieux).toEqual(['En ligne', 'Chez Léa', 'Chez Tom']);
+		const texte = JSON.stringify([r, calendrier.load({ ...(visiteur as object), url: new URL('http://test/films/calendrier') } as never)]);
+		for (const secret of ['Martin', 'Durand', 'lea@exemple.fr', 'secret']) expect(texte).not.toContain(secret);
+	});
 	it('refuse toute action à un visiteur', async () => {
 		expect(await statutErreur(liste.actions.supprimer(envoi({ id: '1' })))).toBe(401);
 		expect(await statutErreur(parties.actions.enregistrer(envoi({ nom: 'x', jeu: 'y' })))).toBe(401);
 		expect(await statutErreur(quoiFaire.actions.envie(envoi({ appid: '10' })))).toBe(401);
+		expect(await statutErreur(commune.actions.programmer(envoi({ date: '2099-01-01' })))).toBe(401);
+		expect(await statutErreur(commune.actions.voter(envoi({ titreId: '1' })))).toBe(401);
 		expect(db().select().from(schema.jeux).all()).toHaveLength(1);
 	});
 });

@@ -386,6 +386,101 @@ export const conseils = sqliteTable(
 	(t) => [index('conseils_destinataire').on(t.aId)]
 );
 
+/** Watch list commune : les titres que la bande veut regarder ensemble (un par titre). */
+export const listeCommune = sqliteTable(
+	'liste_commune',
+	{
+		titreId: integer('titre_id')
+			.primaryKey()
+			.references(() => titres.id, { onDelete: 'cascade' }),
+		proposeParId: integer('propose_par_id').references(() => membres.id, { onDelete: 'set null' }),
+		statut: text('statut', { enum: ['avoir', 'cours', 'vu'] }).notNull().default('avoir'),
+		ajouteLe: integer('ajoute_le').notNull().default(maintenant),
+		/** Date du passage à « Vu ensemble ». */
+		finiLe: integer('fini_le')
+	},
+	(t) => [index('liste_commune_statut').on(t.statut)]
+);
+
+/** Votes pour la prochaine soirée : 3 par membre parmi les titres pas encore vus. */
+export const votesTitre = sqliteTable(
+	'votes_titre',
+	{
+		membreId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => listeCommune.titreId, { onDelete: 'cascade' }),
+		creeLe: integer('cree_le').notNull().default(maintenant)
+	},
+	(t) => [primaryKey({ columns: [t.membreId, t.titreId] }), index('votes_titre_titre').on(t.titreId)]
+);
+
+/** « Je l'ai déjà vu » sur un titre de la liste commune. */
+export const dejaVus = sqliteTable(
+	'deja_vus',
+	{
+		membreId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => listeCommune.titreId, { onDelete: 'cascade' })
+	},
+	(t) => [primaryKey({ columns: [t.membreId, t.titreId] })]
+);
+
+/** Soirées programmées : une par date, avec ou sans titre choisi. */
+export const soirees = sqliteTable(
+	'soirees',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** Jour, au format AAAA-MM-JJ (heure de Paris). */
+		date: text('date').notNull(),
+		/** Heure, au format HH:MM. */
+		heure: text('heure').notNull().default('21:00'),
+		/** « En ligne », « Chez Inès »… */
+		lieu: text('lieu').notNull().default('En ligne'),
+		titreId: integer('titre_id').references(() => titres.id, { onDelete: 'set null' }),
+		/** Précision libre, ex. « Épisodes 3 et 4 ». */
+		note: text('note'),
+		creeParId: integer('cree_par_id').references(() => membres.id, { onDelete: 'set null' }),
+		creeLe: integer('cree_le').notNull().default(maintenant)
+	},
+	(t) => [uniqueIndex('soirees_date').on(t.date)]
+);
+
+/** « Je viens » à une soirée. */
+export const presencesSoiree = sqliteTable(
+	'presences_soiree',
+	{
+		soireeId: integer('soiree_id')
+			.notNull()
+			.references(() => soirees.id, { onDelete: 'cascade' }),
+		membreId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		creeLe: integer('cree_le').notNull().default(maintenant)
+	},
+	(t) => [primaryKey({ columns: [t.soireeId, t.membreId] })]
+);
+
+/** Épisodes d'une série de la liste commune vus ensemble. */
+export const episodesVusEnsemble = sqliteTable(
+	'episodes_vus_ensemble',
+	{
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => listeCommune.titreId, { onDelete: 'cascade' }),
+		saison: integer('saison').notNull(),
+		episode: integer('episode').notNull(),
+		vuLe: integer('vu_le').notNull().default(maintenant)
+	},
+	(t) => [primaryKey({ columns: [t.titreId, t.saison, t.episode] })]
+);
+
 export type Membre = typeof membres.$inferSelect;
 export type JeuSteam = typeof jeuxSteam.$inferSelect;
 export type Titre = typeof titres.$inferSelect;
+export type Soiree = typeof soirees.$inferSelect;
