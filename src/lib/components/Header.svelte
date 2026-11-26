@@ -20,6 +20,8 @@
 	export interface Rubriques {
 		/** Menu Films & séries (pages livrées avec la watchlist). */
 		films: boolean;
+		/** Watch list commune (page publique, livrée après Ma watchlist). */
+		filmsCommune: boolean;
 		fichiers: boolean;
 		planningUrl: string | null;
 	}
@@ -47,10 +49,10 @@
 		{ cle: 'parties', libelle: 'Parties', icone: 'dices', href: '/jeux/parties' },
 		{ cle: 'quoi-faire', libelle: 'Quoi faire ?', icone: 'lightbulb', href: '/jeux/quoi-faire' }
 	];
-	const FILMS: Lien[] = [
-		{ cle: 'films', libelle: 'Watch list commune', icone: 'popcorn', href: '/films' },
-		{ cle: 'watchlist', libelle: 'Ma watchlist', icone: 'list-video', href: '/films/ma-watchlist' }
-	];
+	const FILMS = $derived<Lien[]>([
+		...(rubriques.filmsCommune ? [{ cle: 'films', libelle: 'Watch list commune', icone: 'popcorn', href: '/films' }] : []),
+		...(membre ? [{ cle: 'watchlist', libelle: 'Ma watchlist', icone: 'list-video', href: '/films/ma-watchlist' }] : [])
+	]);
 	const SECTIONS = $derived<Lien[]>([
 		...(rubriques.fichiers ? [{ cle: 'fichiers', libelle: 'Fichiers', icone: 'folder-down', href: '/fichiers' }] : []),
 		// Le Panel reste fermé aux visiteurs (mode lecture seule).

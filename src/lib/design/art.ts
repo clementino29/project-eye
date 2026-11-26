@@ -81,6 +81,12 @@ export function posterOf(titre: string) {
 	return `linear-gradient(160deg, hsl(${h},62%,38%) 0%, hsl(${(h + 35) % 360},60%,18%) 100%)`;
 }
 
+/** Visuel d'un film ou d'une série pour le fond flou (Lueur) : affiche dessinée en 160°. */
+export function artTitre(titre: string): Art {
+	const hue = hueOf(titre) % 360;
+	return { hue, icon: 'clapperboard', grad: posterOf(titre), solid: `hsl(${hue},60%,30%)` };
+}
+
 /** Fond d'une jaquette : l'image par-dessus le dégradé (une image bloquée laisse le dégradé). */
 export function fondImage(art: Art, image?: string | null) {
 	return image ? `url(${JSON.stringify(image)}), ${art.grad}` : art.grad;

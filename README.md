@@ -68,6 +68,7 @@ Tout passe par des variables d'environnement, décrites dans [`.env.example`](.e
 | `AUTHENTIK_MEMBER_GROUP`, `AUTHENTIK_ADMIN_GROUP` | Groupes qui donnent accès au hub (par défaut `hub-membres` et `hub-admins`). |
 | `STEAM_API_KEY` | Clé Steam Web API, pour les bibliothèques. |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | Facultatif. Application Twitch pour chercher les jeux sur IGDB (titre, série, image). |
+| `TMDB_API_KEY` | Clé TMDB (v3) ou jeton de lecture (v4), pour chercher les films et séries de Ma watchlist. |
 | `PELICAN_URL` | Adresse de Sakura Panel. `PELICAN_API_KEYS_URL` et `PELICAN_SERVER_URL_TEMPLATE` sont facultatives. |
 | `KUMA_URL`, `KUMA_STATUS_SLUG` | Page de statut publique d'Uptime Kuma. |
 | `PLANNING_URL` | Lien « Planning » du menu (par défaut https://calendar.la-sikaverne.fr/, « aucun » le masque). |
@@ -99,6 +100,15 @@ Dans la fenêtre « Ajouter un jeu », une recherche IGDB remplit le titre exact
 2. Reporte son Client ID dans `IGDB_CLIENT_ID` et un nouveau secret dans `IGDB_CLIENT_SECRET`.
 
 Sans ces deux valeurs, la recherche n'apparaît pas et les jeux se saisissent à la main.
+
+### TMDB (films et séries)
+
+Ma watchlist cherche les films et les séries sur TMDB (titre français, affiche, saisons et épisodes). Les fiches sont gardées dans la base et relues au plus une fois par semaine.
+
+1. Crée un compte gratuit sur https://www.themoviedb.org, puis va dans *Paramètres › API* et demande une clé (usage personnel).
+2. Colle la « clé d'API » ou le « jeton d'accès en lecture » dans `TMDB_API_KEY`.
+
+Sans clé, Ma watchlist s'ouvre mais la fenêtre « Ajouter un titre » ne peut rien chercher.
 
 ### Uptime Kuma
 

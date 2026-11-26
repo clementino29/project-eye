@@ -285,5 +285,107 @@ export const actionsServeur = sqliteTable(
 	(t) => [index('actions_serveur_date').on(t.date)]
 );
 
+// --- Films & séries ---
+
+/** Fiche d'un film ou d'une série, recopiée de TMDB (cache local, relu de temps en temps). */
+export const titres = sqliteTable(
+	'titres',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		tmdbId: integer('tmdb_id').notNull(),
+		type: text('type', { enum: ['film', 'serie'] }).notNull(),
+		titre: text('titre').notNull(),
+		titreOriginal: text('titre_original'),
+		annee: integer('annee'),
+		/** Chemin de l'affiche chez TMDB (ex. « /abc.jpg »). */
+		affiche: text('affiche'),
+		resume: text('resume'),
+		/** Genres, en JSON (liste de libellés). */
+		genres: text('genres').notNull().default('[]'),
+		/** Durée en minutes : celle du film, ou celle d'un épisode pour une série. */
+		duree: integer('duree'),
+		/** Saisons d'une série, en JSON : [{ numero, nom, episodes }] (saisons spéciales exclues). */
+		saisons: text('saisons').notNull().default('[]'),
+		majLe: integer('maj_le').notNull().default(maintenant)
+	},
+	(t) => [uniqueIndex('titres_tmdb').on(t.type, t.tmdbId)]
+);
+
+/** Épisodes d'une saison (noms et durées), lus chez TMDB à la première ouverture. */
+export const saisonsTitre = sqliteTable(
+	'saisons_titre',
+	{
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => titres.id, { onDelete: 'cascade' }),
+		numero: integer('numero').notNull(),
+		/** En JSON : [{ numero, nom, duree }]. */
+		episodes: text('episodes').notNull(),
+		majLe: integer('maj_le').notNull().default(maintenant)
+	},
+	(t) => [primaryKey({ columns: [t.titreId, t.numero] })]
+);
+
+/** La watchlist de chaque membre : statut, note et avis. */
+export const watchlist = sqliteTable(
+	'watchlist',
+	{
+		membreId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => titres.id, { onDelete: 'cascade' }),
+		statut: text('statut', { enum: ['avoir', 'cours', 'vu'] }).notNull().default('avoir'),
+		/** Note de 1 à 5, vide sans note. */
+		note: integer('note'),
+		/** Un mot pour la bande, visible sur la fiche. */
+		avis: text('avis'),
+		ajouteLe: integer('ajoute_le').notNull().default(maintenant),
+		/** Date du passage à « Vu ». */
+		finiLe: integer('fini_le'),
+		majLe: integer('maj_le').notNull().default(maintenant)
+	},
+	(t) => [primaryKey({ columns: [t.membreId, t.titreId] }), index('watchlist_titre').on(t.titreId)]
+);
+
+/** Épisodes vus par un membre. */
+export const episodesVus = sqliteTable(
+	'episodes_vus',
+	{
+		membreId: integer('membre_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => titres.id, { onDelete: 'cascade' }),
+		saison: integer('saison').notNull(),
+		episode: integer('episode').notNull(),
+		vuLe: integer('vu_le').notNull().default(maintenant)
+	},
+	(t) => [primaryKey({ columns: [t.membreId, t.titreId, t.saison, t.episode] })]
+);
+
+/** « Conseiller à un pote » : un titre envoyé par un membre à un autre. */
+export const conseils = sqliteTable(
+	'conseils',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		deId: integer('de_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		aId: integer('a_id')
+			.notNull()
+			.references(() => membres.id, { onDelete: 'cascade' }),
+		titreId: integer('titre_id')
+			.notNull()
+			.references(() => titres.id, { onDelete: 'cascade' }),
+		message: text('message'),
+		creeLe: integer('cree_le').notNull().default(maintenant)
+	},
+	(t) => [index('conseils_destinataire').on(t.aId)]
+);
+
 export type Membre = typeof membres.$inferSelect;
 export type JeuSteam = typeof jeuxSteam.$inferSelect;
+export type Titre = typeof titres.$inferSelect;

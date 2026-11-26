@@ -6,8 +6,9 @@ export const load = async ({ locals }) => {
 	const m = locals.membre;
 	return {
 		moi: m ? { id: m.id, nom: m.nom, pseudo: m.pseudo, photo: urlPhoto(m), role: m.role } : null,
-		// Films & séries et Fichiers apparaîtront dans le menu quand leurs pages seront livrées.
-		rubriques: { films: false, fichiers: false, planningUrl: config.planningUrl },
+		// Films & séries : Ma watchlist pour les membres ; la Watch list commune viendra ensuite.
+		// Fichiers apparaîtra dans le menu quand sa page sera livrée.
+		rubriques: { films: !!m, filmsCommune: false, fichiers: false, planningUrl: config.planningUrl },
 		etatStatus: await etatGlobalRapide()
 	};
 };
