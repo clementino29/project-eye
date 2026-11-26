@@ -31,6 +31,8 @@ export const membres = sqliteTable('membres', {
 	clePelicanChiffree: text('cle_pelican_chiffree'),
 	clePelicanAjouteeLe: integer('cle_pelican_ajoutee_le'),
 	role: text('role', { enum: ['membre', 'admin'] }).notNull().default('membre'),
+	/** Membre du groupe Authentik des fichiers (AUTHENTIK_FILES_GROUP) : peut ajouter des fichiers. */
+	deposeFichiers: integer('depose_fichiers', { mode: 'boolean' }).notNull().default(false),
 	/** En millisecondes, comme avant : seul le type TypeScript change (Date). */
 	creeLe: integer('cree_le', { mode: 'timestamp_ms' }).notNull().default(maintenant),
 	majLe: integer('maj_le', { mode: 'timestamp_ms' }),
@@ -480,7 +482,58 @@ export const episodesVusEnsemble = sqliteTable(
 	(t) => [primaryKey({ columns: [t.titreId, t.saison, t.episode] })]
 );
 
+/** Fichiers & applis : un projet par jeu (ou « Essentiels »), avec ses étapes d'installation. */
+export const projets = sqliteTable('projets', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	/** Morceau d'adresse : /fichiers/<slug>. */
+	slug: text('slug').notNull().unique(),
+	nom: text('nom').notNull(),
+	sousTitre: text('sous_titre'),
+	/** En-tête de la page : logo et titre, logo seul ou titre seul. */
+	affichage: text('affichage', { enum: ['logo_titre', 'logo', 'titre'] }).notNull().default('logo_titre'),
+	/** Étapes d'installation, en JSON (liste de textes). */
+	etapes: text('etapes').notNull().default('[]'),
+	/** Images envoyées sur le hub (noms dans le dossier des fichiers, sous images/). */
+	banniere: text('banniere'),
+	logo: text('logo'),
+	vignette: text('vignette'),
+	creeParId: integer('cree_par_id').references(() => membres.id, { onDelete: 'set null' }),
+	creeLe: integer('cree_le').notNull().default(maintenant),
+	majLe: integer('maj_le').notNull().default(maintenant)
+});
+
+/** Un fichier d'un projet : envoyé sur le hub, ou lien vers le site officiel. */
+export const fichiers = sqliteTable(
+	'fichiers',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projetId: integer('projet_id')
+			.notNull()
+			.references(() => projets.id, { onDelete: 'cascade' }),
+		nom: text('nom').notNull(),
+		type: text('type', { enum: ['appli', 'mod', 'config'] }).notNull().default('appli'),
+		version: text('version'),
+		/** Plateformes, en JSON : win, mac, linux, android. */
+		plateformes: text('plateformes').notNull().default('[]'),
+		/** Note d'installation, ex. « Dézippe dans le dossier mods ». */
+		note: text('note'),
+		/** Lien externe (sinon fichier hébergé). */
+		lien: text('lien'),
+		/** Fichier hébergé : nom sur le disque, nom d'origine, taille en octets et type. */
+		stockage: text('stockage'),
+		nomOriginal: text('nom_original'),
+		taille: integer('taille'),
+		typeMime: text('type_mime'),
+		ajouteParId: integer('ajoute_par_id').references(() => membres.id, { onDelete: 'set null' }),
+		ajouteLe: integer('ajoute_le').notNull().default(maintenant),
+		majLe: integer('maj_le').notNull().default(maintenant)
+	},
+	(t) => [index('fichiers_projet').on(t.projetId)]
+);
+
 export type Membre = typeof membres.$inferSelect;
 export type JeuSteam = typeof jeuxSteam.$inferSelect;
 export type Titre = typeof titres.$inferSelect;
 export type Soiree = typeof soirees.$inferSelect;
+export type Projet = typeof projets.$inferSelect;
+export type Fichier = typeof fichiers.$inferSelect;

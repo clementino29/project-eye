@@ -47,11 +47,12 @@ describe('adresses ouvertes aux visiteurs', () => {
 			expect(ouvertAuxVisiteurs('GET', c), c).toBe(true);
 	});
 	it('garde fermés le Panel, le Compte et toute écriture', () => {
-		for (const c of ['/panel', '/compte', '/jeux/igdb', '/jeux/liste/autre', '/deconnexion', '/films/ma-watchlist', '/films/les-potes', '/films/titre/1', '/films/tmdb', '/films/commune', '/films/commune/4/x'])
+		for (const c of ['/panel', '/compte', '/jeux/igdb', '/jeux/liste/autre', '/deconnexion', '/films/ma-watchlist', '/films/les-potes', '/films/titre/1', '/films/tmdb', '/films/commune', '/films/commune/4/x', '/fichiers', '/fichiers/minecraft', '/fichiers/nouveau', '/fichiers/telecharger/1', '/fichiers/images/x.png'])
 			expect(ouvertAuxVisiteurs('GET', c), c).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/jeux/liste')).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/jeux/quoi-faire')).toBe(false);
 		expect(ouvertAuxVisiteurs('POST', '/films')).toBe(false);
+		expect(ouvertAuxVisiteurs('POST', '/fichiers/envoi')).toBe(false);
 	});
 	it('laisse un visiteur se connecter', () => {
 		expect(ouvertAuxVisiteurs('POST', '/connexion')).toBe(true);

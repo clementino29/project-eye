@@ -1,6 +1,7 @@
 // Lecture de la configuration. Tous les secrets viennent de variables
 // d'environnement (voir .env.example), jamais du code.
 import fs from 'node:fs';
+import path from 'node:path';
 
 let charge = false;
 
@@ -22,6 +23,14 @@ function lire(nom: string): string | undefined {
 	chargerFichierEnv();
 	const v = process.env[nom];
 	return v === undefined || v.trim() === '' ? undefined : v.trim();
+}
+
+/** « 2G », « 500M », « 1048576 » → octets (undefined si illisible). */
+export function lireTaille(v: string | undefined) {
+	const m = v?.trim().match(/^(\d+(?:[.,]\d+)?)\s*([kmgt]?)o?b?$/i);
+	if (!m) return undefined;
+	const facteur = { '': 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3, t: 1024 ** 4 }[m[2].toLowerCase() as '' | 'k' | 'm' | 'g' | 't'];
+	return Math.round(Number(m[1].replace(',', '.')) * facteur);
 }
 
 function sansSlashFinal(url: string | undefined) {
@@ -61,6 +70,10 @@ export const config = {
 		},
 		get groupeAdmins() {
 			return lire('AUTHENTIK_ADMIN_GROUP') ?? 'hub-admins';
+		},
+		/** Groupe qui peut ajouter des fichiers (en plus des admins). */
+		get groupeFichiers() {
+			return lire('AUTHENTIK_FILES_GROUP') ?? 'hub.files';
 		},
 		/** Page où chacun modifie son nom, son e-mail et son pseudo. */
 		get urlProfil() {
@@ -102,6 +115,17 @@ export const config = {
 		},
 		get configure() {
 			return !!lire('TMDB_API_KEY');
+		}
+	},
+	/** Fichiers & applis : dossier des fichiers envoyés et taille maximale d'un fichier. */
+	fichiers: {
+		/** Par défaut à côté de la base (/data/fichiers dans Docker). */
+		get dossier() {
+			return lire('FICHIERS_PATH') ?? path.join(path.dirname(lire('DATABASE_PATH') ?? './data/hub.db'), 'fichiers');
+		},
+		/** FICHIERS_TAILLE_MAX : en octets, ou avec une unité (500M, 2G). Par défaut 2 Go. */
+		get tailleMax() {
+			return lireTaille(lire('FICHIERS_TAILLE_MAX')) ?? 2 * 1024 ** 3;
 		}
 	},
 	pelican: {
