@@ -7,6 +7,8 @@ const LECTURE_SEULE = [
 	/^\/sante$/,
 	/^\/status$/,
 	/^\/jeux(\/(liste|parties|quoi-faire))?\/?$/,
+	// Watch list commune, son calendrier et ses fiches (Ma watchlist et Les potes restent fermés).
+	/^\/films(\/(calendrier|commune\/\d+))?\/?$/,
 	/^\/membres\/\d+\/photo$/
 ];
 /** La connexion est la seule page où un visiteur peut aussi envoyer un formulaire. */
