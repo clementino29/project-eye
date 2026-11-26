@@ -1,7 +1,12 @@
 <script lang="ts">
 	// « Parties » : cartes groupées par jeu, panneau de détail avec le journal des sessions.
+	import { page } from '$app/state';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import AvatarGroup from '#lib/components/AvatarGroup.svelte';
+	import Lueur from '#lib/components/Lueur.svelte';
+	import StatusPill from '#lib/components/StatusPill.svelte';
+	import { artJeu, fondImage } from '#lib/design/art.ts';
+	import { PASTILLES_PARTIE } from '#lib/design/pastilles.ts';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import { envoyer } from '#lib/actions.ts';
 	import { ORDRE_PARTIE, STATUTS_PARTIE as ST, type StatutPartie } from '#lib/libelles.ts';
@@ -14,7 +19,10 @@
 	let recherche = $state('');
 	let filtreJeu = $state('tous');
 	let filtreStatut = $state<'tous' | StatutPartie>('tous');
-	let edition = $state(true);
+	// Un visiteur non connecté reste en lecture seule (les actions sont aussi refusées côté serveur).
+	const connecte = $derived(!!data.moi);
+	let modeEdition = $state(true);
+	const edition = $derived(connecte && modeEdition);
 	let ouverte = $state<number | null>(null);
 	let menu = $state<number | null>(null);
 	let modale = $state<'nouvelle' | 'session' | number | null>(null);
@@ -27,7 +35,7 @@
 	const prenom = (id: number | null) => membre(id)?.nom.split(' ')[0] ?? 'un ancien membre';
 	const personnes = (p: Partie) => p.joueurs.map((id) => membre(id)).filter((m) => !!m).map((m) => ({ nom: m!.nom, photo: m!.photo }));
 	const barreDe = (ps: Partie[]) => ORDRE_PARTIE.map((k) => ({ n: ps.filter((p) => p.statut === k).length, c: ST[k].c })).filter((b) => b.n);
-	const couleurBarre = (p: Partie) => (p.statut === 'terminee' ? 'var(--success-fg)' : p.statut === 'en_pause' ? 'var(--warning-fg)' : 'var(--petrol-300)');
+	const couleurBarre = (p: Partie) => ST[p.statut].c;
 	const aujourdhui = () => {
 		const d = new Date();
 		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -60,6 +68,7 @@
 				}
 				return {
 					nom,
+					image: toutes.find((p) => p.image)?.image ?? null,
 					cellules,
 					barre: barreDe(toutes),
 					meta: `${toutes.length} partie${toutes.length > 1 ? 's' : ''}${enCours ? ` · ${enCours} en cours` : ''}`
@@ -67,7 +76,15 @@
 			});
 	});
 
-	const resume = $derived(ORDRE_PARTIE.map((k) => ({ l: ST[k].pl, n: data.parties.filter((p) => p.statut === k).length, c: ST[k].c })));
+	const resume = $derived(ORDRE_PARTIE.map((k) => ({ k, l: ST[k].pl, n: data.parties.filter((p) => p.statut === k).length })));
+	// Fond flou : le jeu de la partie ouverte, sinon de la partie en cours jouée le plus récemment.
+	const vedette = $derived.by(() => {
+		const enCours = data.parties
+			.filter((p) => p.statut === 'en_cours')
+			.sort((a, b) => derniereSession(b.sessions).localeCompare(derniereSession(a.sessions)));
+		const p = data.parties.find((x) => x.id === ouverte) ?? enCours[0] ?? data.parties[0];
+		return p ? { art: artJeu(p.jeu), image: p.image } : null;
+	});
 	const jeuxUtilises = $derived([...new Set(data.parties.map((p) => p.jeu))].sort((a, b) => a.localeCompare(b, 'fr')));
 	const partieSession = $derived(data.parties.find((p) => p.id === sform.partieId));
 	const peutEnregistrer = $derived(!!(form.nom.trim() && form.jeu.trim() && form.joueurs.length) && !envoi);
@@ -149,18 +166,24 @@
 	{/if}
 {/snippet}
 
+{#if vedette}<Lueur jaquette={vedette} />{:else}<Lueur />{/if}
+
 <main class="nh-page" style="gap:var(--space-12)">
 	<header class="entete">
 		<div class="ligne">
 			<div class="col">
 				<h1>Parties</h1>
 				<div class="resume">
-					{#each resume as s (s.l)}<span><span class="nh-dot" style:background={s.c}></span>{s.n} {s.l}</span>{/each}
+					{#each resume as s (s.l)}<span><StatusPill pastille={PASTILLES_PARTIE[s.k]} taille="rond" />{s.n} {s.l}</span>{/each}
 				</div>
 			</div>
 			<div class="boutons">
-				<button type="button" class="nh-btn nh-btn--ghost" onclick={() => { edition = !edition; menu = null; }}><i class="icon-{edition ? 'eye' : 'pencil'}" aria-hidden="true"></i>{edition ? 'Mode lecture' : 'Modifier'}</button>
-				{#if edition}<button type="button" class="nh-btn nh-btn--primary" onclick={ouvrirAjout}><i class="icon-plus" aria-hidden="true"></i>Nouvelle partie</button>{/if}
+				{#if connecte}
+					<button type="button" class="nh-btn nh-btn--ghost" onclick={() => { modeEdition = !modeEdition; menu = null; }}><i class="icon-{edition ? 'eye' : 'pencil'}" aria-hidden="true"></i>{edition ? 'Mode lecture' : 'Modifier'}</button>
+					{#if edition}<button type="button" class="nh-btn nh-btn--primary" onclick={ouvrirAjout}><i class="icon-plus" aria-hidden="true"></i>Nouvelle partie</button>{/if}
+				{:else}
+					<a href="/connexion?retour={encodeURIComponent(page.url.pathname)}" class="nh-btn nh-btn--outline"><i class="icon-log-in" aria-hidden="true"></i>Se connecter pour modifier</a>
+				{/if}
 			</div>
 		</div>
 		<div class="filtres">
@@ -185,8 +208,10 @@
 	{/if}
 
 	{#each groupes as g (g.nom)}
+		{@const art = artJeu(g.nom)}
 		<section class="groupe-jeu">
 			<div class="g-tete">
+				<span class="vignette" aria-hidden="true" style:background-color={art.solid} style:background-image={fondImage(art, g.image)}>{#if !g.image}<i class="icon-{art.icon}"></i>{/if}</span>
 				<h2>{g.nom}</h2>
 				<span class="meta">{g.meta}</span>
 				<div class="nh-bar g-barre">{#each g.barre as b, k (k)}<span style:flex={b.n} style:background={b.c}></span>{/each}</div>
@@ -208,12 +233,12 @@
 								<span class="c-nom">{p.nom}</span>
 								<div class="statut">
 									<button type="button" class="nh-unset" style:cursor={edition ? 'pointer' : 'default'} aria-haspopup={edition ? 'menu' : undefined} aria-expanded={edition ? menu === p.id : undefined} aria-label="Statut : {ST[p.statut].l}" onclick={(e) => { e.stopPropagation(); if (edition) menu = menu === p.id ? null : p.id; }}>
-										<span class="nh-badge nh-badge--{ST[p.statut].ton}"><span class="nh-badge__dot"></span>{ST[p.statut].l}{#if edition}<i class="icon-chevron-down" style="font-size:12px" aria-hidden="true"></i>{/if}</span>
+										<span class="pill-statut"><StatusPill pastille={PASTILLES_PARTIE[p.statut]} />{#if edition}<i class="icon-chevron-down" style="font-size:12px;color:var(--fg-2)" aria-hidden="true"></i>{/if}</span>
 									</button>
 									{#if menu === p.id}
 										<div class="nh-menu" role="menu" style="top:calc(100% + 6px);right:0;min-width:170px">
 											{#each ORDRE_PARTIE as k (k)}
-												<button type="button" role="menuitemradio" aria-checked={k === p.statut} aria-current={k === p.statut} onclick={(e) => { e.stopPropagation(); changerStatut(p, k); }}><span class="nh-dot" style:background={ST[k].c}></span>{ST[k].l}</button>
+												<button type="button" role="menuitemradio" aria-checked={k === p.statut} aria-current={k === p.statut} onclick={(e) => { e.stopPropagation(); changerStatut(p, k); }}><StatusPill pastille={PASTILLES_PARTIE[k]} taille="rond" />{ST[k].l}</button>
 											{/each}
 										</div>
 									{/if}
@@ -234,7 +259,7 @@
 							<span class="caret" style:left={c.caret}></span>
 							<div class="p-tete">
 								<span class="p-nom">{p.nom}</span>
-								<span class="nh-badge nh-badge--{ST[p.statut].ton}"><span class="nh-badge__dot"></span>{ST[p.statut].l}</span>
+								<StatusPill pastille={PASTILLES_PARTIE[p.statut]} />
 								<span class="p-actions">
 									{#if edition}<button type="button" class="nh-btn nh-btn--ghost nh-btn--sm" onclick={() => ouvrirEdition(p)}><i class="icon-pencil" aria-hidden="true"></i>Modifier</button>{/if}
 									<button type="button" class="nh-btn nh-iconbtn nh-btn--ghost" aria-label="Fermer" onclick={() => (ouverte = null)}><i class="icon-x" aria-hidden="true"></i></button>
@@ -394,7 +419,26 @@
 		flex-wrap: wrap;
 		gap: var(--space-4);
 		font: var(--type-body-sm);
-		color: var(--fg-3);
+		color: var(--fg-2);
+	}
+	.pill-statut {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.vignette {
+		flex: none;
+		align-self: center;
+		width: 96px;
+		height: 45px;
+		border-radius: var(--radius-sm);
+		background-size: cover;
+		background-position: center;
+		display: grid;
+		place-items: center;
+		color: rgba(255, 255, 255, 0.85);
+		font-size: 22px;
+		box-shadow: var(--shadow-1);
 	}
 	.resume > span {
 		display: flex;
@@ -429,7 +473,7 @@
 	.g-tete {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: baseline;
+		align-items: center;
 		gap: var(--space-3) var(--space-4);
 	}
 	h2 {

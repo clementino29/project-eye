@@ -3,6 +3,7 @@
 	import type { SubmitFunction } from '$app/forms';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
+	import { artJeu } from '#lib/design/art.ts';
 	import { toasts } from '#lib/toasts.svelte.ts';
 	import { ilYa } from '#lib/libelles.ts';
 
@@ -233,7 +234,8 @@
 			{#if lie}
 				<div class="jeux" style:opacity={synchro ? 0.4 : 1}>
 					{#each data.steam.apercu as j (j.id)}
-						<img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{j.id}/header.jpg" alt={j.nom} title={j.nom} loading="lazy" />
+						{@const art = artJeu(j.nom)}
+						<div class="jaquette" style:background={art.grad} title={j.nom}><i class="icon-{art.icon}" aria-hidden="true"></i><span>{j.nom}</span></div>
 					{/each}
 					{#if data.steam.total > data.steam.apercu.length}
 						<div class="reste">+ {data.steam.total - data.steam.apercu.length} autres</div>
@@ -585,13 +587,41 @@
 		gap: 12px;
 		transition: opacity 180ms var(--ease-out);
 	}
-	.jeux img,
+	.jaquette,
 	.reste {
 		width: 100%;
 		aspect-ratio: 460/215;
 		border-radius: 10px;
-		object-fit: cover;
-		background: var(--petrol-800);
+	}
+	/* Jaquette dessinée : les images Steam sont bloquées. */
+	.jaquette {
+		position: relative;
+		overflow: hidden;
+		display: flex;
+		align-items: flex-end;
+		padding: 6px 8px;
+		font-weight: 800;
+		font-size: 11px;
+		line-height: 1.15;
+		color: #fff;
+		text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+	}
+	.jaquette span {
+		position: relative;
+		overflow: hidden;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+	}
+	.jaquette i {
+		position: absolute;
+		right: -4px;
+		top: 50%;
+		transform: translateY(-50%) rotate(-12deg);
+		font-size: 44px;
+		color: rgba(255, 255, 255, 0.2);
+		text-shadow: none;
 	}
 	.reste {
 		border: 1.5px dashed var(--border-strong);
@@ -772,7 +802,7 @@
 		.jeux {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
-		.jeux img:nth-child(n + 4) {
+		.jeux .jaquette:nth-child(n + 4) {
 			display: none;
 		}
 	}

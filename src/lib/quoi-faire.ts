@@ -11,6 +11,8 @@ export interface JeuCommun {
 	genres: string | null;
 	gratuit: boolean;
 	proprietaires: number[];
+	/** Image du même jeu dans la Liste des jeux, si elle en a une (sinon jaquette dessinée). */
+	image?: string | null;
 }
 
 export interface Filtres {
@@ -89,8 +91,3 @@ export function listeNoms(noms: string[]) {
 	return `${noms.slice(0, -1).join(', ')} et ${noms[noms.length - 1]}`;
 }
 
-/** Images publiques du Steam Store (bannière ou petite capsule). */
-export const imageSteam = (appid: number, type: 'header' | 'capsule' = 'header') =>
-	`https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/${
-		type === 'header' ? 'header.jpg' : 'capsule_231x87.jpg'
-	}`;

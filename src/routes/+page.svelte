@@ -12,14 +12,11 @@
 
 <svelte:head><title>Nohriancons</title></svelte:head>
 
-<Lueur
-	hauteur="min(960px, 115vh)"
-	fond="radial-gradient(65% 85% at 12% 0%, rgba(53,106,140,.75) 0%, rgba(35,76,103,.38) 45%, rgba(11,21,28,0) 82%), radial-gradient(45% 60% at 88% 16%, rgba(244,178,122,.30) 0%, rgba(244,178,122,.10) 45%, rgba(11,21,28,0) 75%), radial-gradient(80% 50% at 55% 0%, rgba(147,188,214,.14) 0%, rgba(11,21,28,0) 72%)"
-/>
+<Lueur />
 
 <main class="nh-page" style="gap:clamp(48px,5vw,96px)">
 	<section class="intro">
-		<span class="nh-overline">Le QG de la bande</span>
+		<span class="nh-overline" style="color:var(--fg-2)">Le QG de la bande</span>
 		<h1>{salut}</h1>
 		<p>Nohriancons, c'est notre coin à nous : on y suit les jeux en cours, on cale les prochaines parties et on trouve quoi faire quand personne n'a d'idée.</p>
 		<div class="actions">
@@ -48,7 +45,7 @@
 
 	<footer class="pied">
 		<span>Aussi sur le site</span>
-		<a href="/panel"><i class="icon-layout-dashboard" aria-hidden="true"></i>Panel</a>
+		{#if data.moi}<a href="/panel"><i class="icon-layout-dashboard" aria-hidden="true"></i>Panel</a>{/if}
 		<a href="/status"><i class="icon-activity" aria-hidden="true"></i>Status</a>
 	</footer>
 </main>

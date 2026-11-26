@@ -1,8 +1,7 @@
-import { exigerMembre } from '#lib/server/garde.ts';
 import { lireStatut } from '#lib/server/kuma.ts';
 
-export const load = async ({ locals, depends }) => {
-	exigerMembre(locals);
+// Lisible sans connexion : Uptime Kuma publie déjà cette page de statut.
+export const load = async ({ depends }) => {
 	depends('hub:status');
 	try {
 		const statut = await lireStatut();

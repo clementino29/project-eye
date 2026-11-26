@@ -1,12 +1,19 @@
 <script lang="ts">
-	// Halo coloré en haut de page, derrière l'en-tête vitré (comme dans le design).
-	// `fond` : dégradés CSS ; `image` : jaquette floutée (page Panel).
-	let { fond = null, image = null, hauteur = 'min(900px, 110vh)' }: { fond?: string | null; image?: { couleur: string; degrade: string } | null; hauteur?: string } = $props();
+	// Fond d'ambiance du haut de page, derrière l'en-tête vitré (consignes de style, §6).
+	// `fond` : lueur (dégradés CSS) ; `jaquette` : visuel flouté (image par-dessus son dégradé).
+	import { fondImage, LUEUR_NEUTRE, type Art } from '#lib/design/art.ts';
+
+	let {
+		fond = null,
+		jaquette = null,
+		hauteur = null
+	}: { fond?: string | null; jaquette?: { art: Art; image?: string | null } | null; hauteur?: string | null } = $props();
+	const h = $derived(hauteur ?? (jaquette ? 'min(760px, 95vh)' : 'min(960px, 115vh)'));
 </script>
 
-<div class="lueur" aria-hidden="true" style:height={hauteur} style:background={fond}>
-	{#if image}
-		<div class="flou" style:background-color={image.couleur} style:background-image={image.degrade}></div>
+<div class="lueur" aria-hidden="true" style:height={h} style:background={jaquette ? null : (fond ?? LUEUR_NEUTRE)}>
+	{#if jaquette}
+		<div class="flou" style:background-color={jaquette.art.solid} style:background-image={fondImage(jaquette.art, jaquette.image)}></div>
 		<div class="voile"></div>
 	{/if}
 </div>
@@ -28,6 +35,7 @@
 		background-position: center 30%;
 		filter: blur(36px) saturate(1.25);
 		opacity: 0.55;
+		transition: background 0.6s var(--ease-out);
 	}
 	.voile {
 		position: absolute;

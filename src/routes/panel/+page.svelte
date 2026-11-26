@@ -4,45 +4,15 @@
 	import type { SubmitFunction } from '$app/forms';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import Lueur from '#lib/components/Lueur.svelte';
-	import Pilule from '#lib/components/Pilule.svelte';
+	import StatusPill from '#lib/components/StatusPill.svelte';
+	import { artServeur } from '#lib/design/art.ts';
+	import { PASTILLES_SERVEUR } from '#lib/design/pastilles.ts';
 	import { toasts } from '#lib/toasts.svelte.ts';
 	import { ilYa, octets } from '#lib/libelles.ts';
 
 	let { data } = $props();
 
-	const ETATS = {
-		running: { l: 'En ligne', c: '#2fe39a', encre: '#04241a', icone: 'play' },
-		offline: { l: 'Arrêté', c: 'var(--night-600)', encre: '#f5f0f2', icone: 'square' },
-		starting: { l: 'Démarrage', c: '#3d9bff', encre: '#04121f', icone: 'loader-circle' },
-		stopping: { l: 'Arrêt en cours', c: '#ffb21e', encre: '#2a1a00', icone: 'pause' },
-		installation: { l: 'Installation', c: '#3d9bff', encre: '#04121f', icone: 'loader-circle' },
-		suspendu: { l: 'Suspendu', c: '#ff5468', encre: '#2a0509', icone: 'ban' },
-		inconnu: { l: 'Inconnu', c: 'var(--night-600)', encre: '#f5f0f2', icone: 'circle-help' }
-	} as const;
-
-	// Jaquettes dessinées : teinte et icône d'après le nom du serveur.
-	const ARTS: [RegExp, number, string][] = [
-		[/factory|factorio/, 28, 'factory'],
-		[/cobble|pok[eé]/, 350, 'circle-dot'],
-		[/craft|minecraft/, 120, 'pickaxe'],
-		[/^pal|palworld/, 195, 'paw-print'],
-		[/unturned|zomb/, 75, 'biohazard'],
-		[/terraria/, 140, 'tree-pine'],
-		[/valheim|viking/, 210, 'sword']
-	];
-	const ICONES_ART = ['server', 'gamepad-2', 'swords', 'rocket', 'castle', 'map'];
-	function artDe(nom: string) {
-		const n = nom.toLowerCase();
-		let h = 0;
-		for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) % 9973;
-		const connu = ARTS.find(([r]) => r.test(n));
-		const teinte = connu ? connu[1] : h % 360;
-		return {
-			icone: connu ? connu[2] : ICONES_ART[h % ICONES_ART.length],
-			degrade: `linear-gradient(135deg, hsl(${teinte},70%,40%) 0%, hsl(${(teinte + 35) % 360},65%,20%) 100%)`,
-			couleur: `hsl(${teinte},60%,30%)`
-		};
-	}
+	const ETATS = PASTILLES_SERVEUR;
 	const ACTIONS = { demarrer: 'a démarré', arreter: 'a arrêté', redemarrer: 'a redémarré', commande: 'a lancé une commande sur', sauvegarde: 'a sauvegardé' };
 	const SIGNAUX = { start: 'démarre', stop: 's’arrête', restart: 'redémarre' };
 
@@ -98,9 +68,9 @@
 <svelte:head><title>Panel · Nohriancons</title></svelte:head>
 
 {#if vedette}
-	<Lueur image={artDe(vedette.nom)} hauteur="min(760px, 95vh)" />
+	<Lueur jaquette={{ art: artServeur(vedette.identifiant, vedette.nom) }} />
 {:else}
-	<Lueur fond="radial-gradient(60% 80% at 12% 0%, rgba(53,106,140,.55) 0%, rgba(53,106,140,.16) 45%, rgba(11,21,28,0) 80%)" />
+	<Lueur />
 {/if}
 
 <main class="nh-page" style="gap:var(--space-8)">
@@ -145,19 +115,19 @@
 		<div class="grille">
 			{#each data.serveurs as s (s.identifiant)}
 				{@const e = ETATS[s.etat]}
-				{@const art = artDe(s.nom)}
+				{@const art = artServeur(s.identifiant, s.nom)}
 				{@const occupe = enCours === s.identifiant}
 				<article class="serveur" aria-labelledby="srv-{s.identifiant}">
-					<div class="art" class:eteint={s.etat === 'suspendu'} aria-hidden="true" style:background={art.degrade}>
-						<i class="icon-{art.icone} filigrane"></i>
-						<span class="vignette"><i class="icon-{art.icone}"></i></span>
+					<div class="art" class:eteint={s.etat === 'suspendu'} aria-hidden="true" style:background={art.grad}>
+						<i class="icon-{art.icon} filigrane"></i>
+						<span class="vignette"><i class="icon-{art.icon}"></i></span>
 					</div>
 					<div class="haut">
 						<div class="titre">
 							<h2 id="srv-{s.identifiant}">{s.nom}</h2>
 							{#if s.jeu ?? s.description}<span class="jeu">{s.jeu ?? s.description}</span>{/if}
 						</div>
-						<Pilule couleur={e.c} encre={e.encre} icone={e.icone} libelle={e.l} />
+						<StatusPill pastille={e} />
 					</div>
 
 					<dl class="infos">

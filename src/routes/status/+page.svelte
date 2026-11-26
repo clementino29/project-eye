@@ -2,7 +2,7 @@
 	// Page Status : état des services suivis par Uptime Kuma, rafraîchi toutes les 30 secondes.
 	import { invalidate } from '$app/navigation';
 	import Lueur from '#lib/components/Lueur.svelte';
-	import Pilule from '#lib/components/Pilule.svelte';
+	import StatusPill from '#lib/components/StatusPill.svelte';
 	import { ilYa, VUES_SERVICE, vueService, type EtatGlobal } from '#lib/libelles.ts';
 
 	let { data } = $props();
@@ -137,7 +137,7 @@
 								<span title="Disponibilité sur 30 jours"><b>{pourcent(s.dispo30j)}</b> 30 j</span>
 								<span title="Temps de réponse"><b>{s.ping ?? '–'}</b> ms</span>
 							</div>
-							<span class="etat"><Pilule couleur={v.c} encre={v.encre} icone={v.icone} libelle={v.l} /></span>
+							<span class="etat"><StatusPill pastille={v} /></span>
 						</div>
 					{/each}
 				</div>
